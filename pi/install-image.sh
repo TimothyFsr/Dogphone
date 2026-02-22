@@ -23,32 +23,54 @@ if [ -f "$REPO_ROOT/config/config.env" ]; then
   echo "Note: config/config.env exists; delete it to test setup wizard on next boot."
 fi
 
-# systemd service: start after desktop so DISPLAY=:0 exists
-SERVICE_FILE="/etc/systemd/system/dogphone.service"
-sudo tee "$SERVICE_FILE" >/dev/null << EOF
-[Unit]
-Description=DogPhone – dog call and treat device
-After=graphical.target network-online.target
-WantedBy=graphical.target
-
-[Service]
-Type=simple
-User=pi
-WorkingDirectory=/home/pi/DogPhone
-Environment=DISPLAY=:0
-ExecStart=/usr/bin/python3 /home/pi/DogPhone/pi/launcher.py
-Restart=on-failure
-RestartSec=10
-
-[Install]
-WantedBy=graphical.target
+# Run launcher from desktop autostart (so it has a real X session and the browser can open).
+# systemd services often cannot open windows on the Pi display.
+# Use current user and repo path so it works for any username (pi, dogphone, etc.).
+CURRENT_USER="${SUDO_USER:-$USER}"
+USER_HOME=$(eval echo "~$CURRENT_USER")
+AUTOSTART_DIR="$USER_HOME/.config/autostart"
+mkdir -p "$AUTOSTART_DIR"
+LAUNCHER_PATH="$REPO_ROOT/pi/launcher.py"
+cat > "$AUTOSTART_DIR/dogphone.desktop" << EOF
+[Desktop Entry]
+Type=Application
+Name=DogPhone
+Comment=DogPhone launcher (setup or call app)
+Exec=/usr/bin/python3 $LAUNCHER_PATH
+Path=$REPO_ROOT
+Terminal=false
+X-GNOME-Autostart-enabled=true
 EOF
-sudo systemctl daemon-reload
-sudo systemctl enable dogphone
-echo "Enabled dogphone.service (runs launcher.py on boot)."
+chown -R "$CURRENT_USER:$CURRENT_USER" "$AUTOSTART_DIR" 2>/dev/null || true
+# Disable systemd version if it was installed earlier (avoids two launchers)
+sudo systemctl disable dogphone 2>/dev/null || true
+echo "Installed autostart: DogPhone runs when the desktop loads."
+
+# Optional: also enable systemd so it can restart the app if it crashes (runs in background;
+# the visible browser is started by the autostart process). Disabled by default to avoid
+# two launcher instances. Uncomment below if you prefer systemd-only.
+# SERVICE_FILE="/etc/systemd/system/dogphone.service"
+# sudo tee "$SERVICE_FILE" >/dev/null << 'SVCEOF'
+# [Unit]
+# Description=DogPhone
+# After=graphical.target network-online.target
+# [Service]
+# Type=simple
+# User=pi
+# WorkingDirectory=/home/pi/DogPhone
+# Environment=DISPLAY=:0
+# ExecStart=/usr/bin/python3 /home/pi/DogPhone/pi/launcher.py
+# Restart=on-failure
+# RestartSec=10
+# [Install]
+# WantedBy=graphical.target
+# SVCEOF
+# sudo systemctl daemon-reload
+# sudo systemctl enable dogphone
 
 # Allow reboot after setup (no password)
-echo "pi ALL=(ALL) NOPASSWD: /usr/sbin/reboot" | sudo tee /etc/sudoers.d/99-dogphone-reboot >/dev/null
+CURRENT_USER="${SUDO_USER:-$USER}"
+echo "$CURRENT_USER ALL=(ALL) NOPASSWD: /usr/sbin/reboot" | sudo tee /etc/sudoers.d/99-dogphone-reboot >/dev/null
 sudo chmod 440 /etc/sudoers.d/99-dogphone-reboot
 echo "Added sudoers rule for reboot after setup."
 

@@ -47,6 +47,8 @@ When someone buys the system, they **plug in power** and the **screen shows simp
 
 Optional: for automatic reboot after setup, allow the DogPhone user to run `sudo reboot` without a password, e.g. add a file under `/etc/sudoers.d/` (see `pi/install.sh` or docs).
 
+**Nothing starts after reboot?** DogPhone runs from **desktop autostart** (not systemd), so the desktop must be up and auto-login enabled. Run `./pi/install-image.sh` again to install the autostart entry, then reboot. See [docs/IMAGE-BUILD.md](docs/IMAGE-BUILD.md#troubleshooting).
+
 ---
 
 ## Project layout
@@ -65,7 +67,8 @@ DogPhone/
 │   ├── requirements.txt      # Python deps for Pi
 │   ├── install.sh            # Interactive install (dev or one-off)
 │   ├── install-image.sh      # Non-interactive install for ship-ready image
-│   └── dogphone.service      # systemd unit (runs launcher.py)
+│   ├── dogphone.desktop      # Autostart entry (runs launcher when desktop loads)
+│   └── dogphone.service      # Optional systemd unit (display usually needs autostart)
 ├── config/
 │   └── config.example.env    # Example env for Pi
 └── docs/

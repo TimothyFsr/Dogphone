@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=DogPhone
+Comment=DogPhone launcher (setup or call app)
+Exec=/usr/bin/python3 /home/pi/DogPhone/pi/launcher.py
+Path=/home/pi/DogPhone
+Terminal=false
+X-GNOME-Autostart-enabled=true

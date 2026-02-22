@@ -84,7 +84,7 @@ This script will:
 
 - Install Python dependencies (Flask, python-telegram-bot, requests, RPi.GPIO).
 - **Not** create `config/config.env` (so the first boot on the client’s side goes into **setup mode** with the QR code).
-- Install the systemd service so **DogPhone starts on every boot** (launcher → setup wizard or main app).
+- Install a **desktop autostart** entry so DogPhone runs when the desktop loads (this way it has a real display and the browser can open; systemd services often cannot).
 - Allow the `pi` user to run `sudo reboot` without a password (so “Setup complete” can restart the device).
 
 ---
@@ -145,12 +145,43 @@ Then put that same password on the sticker you ship. If you use `/etc/environmen
 
 ## Troubleshooting
 
+### Nothing starts after reboot
+
+DogPhone is started by **desktop autostart** (not systemd), so it only runs after the **desktop** is up and the `pi` user is logged in.
+
+1. **Check that autostart is installed:**
+   ```bash
+   ls -la /home/pi/.config/autostart/dogphone.desktop
+   ```
+   If missing, run `./pi/install-image.sh` again.
+
+2. **Run the launcher by hand** (with the desktop already open) to see any errors:
+   ```bash
+   cd /home/pi/DogPhone
+   python3 pi/launcher.py
+   ```
+   You should see the setup page in Chromium. If you get “No module named …”, install deps: `pip3 install -r pi/requirements.txt`. If the browser doesn’t open, try: `chromium-browser http://127.0.0.1:8765/setup`.
+
+3. **Auto-login must be enabled** so the desktop (and thus autostart) runs without anyone logging in:
+   ```bash
+   sudo raspi-config
+   # System Options → Boot / Auto Login → Desktop Autologin
+   ```
+
+4. **If you previously used the systemd service**, disable it so only autostart runs:
+   ```bash
+   sudo systemctl disable dogphone
+   sudo systemctl stop dogphone
+   ```
+   Then reboot.
+
+### Other issues
+
 | Problem | What to check |
 |--------|----------------|
-| Screen stays black or no QR code | Auto-login enabled? Service uses `After=graphical.target` and `DISPLAY=:0`? Run `./pi/launcher.py` by hand and see errors. |
 | “DogPhone-Setup” WiFi doesn’t appear | WiFi country set in raspi-config? Run `./pi/start_setup_ap.sh` by hand and check `nmcli`. |
 | Client completes setup but device doesn’t reboot | Sudoers rule for `reboot` installed? Check `/etc/sudoers.d/99-dogphone-reboot`. |
-| After setup, button doesn’t call | Config saved in `config/config.env`? Service runs `launcher.py` (which runs `main.py` when configured)? |
+| After setup, button doesn’t call | Config saved in `config/config.env`? Launcher runs `main.py` when configured. |
 
 ---
 
