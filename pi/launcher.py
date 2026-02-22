@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from config import load_config
 
 SETUP_PORT = 8765
+# Use --kiosk for full-screen; add --disable-close to prevent accidental close, or omit for closable window
 BROWSER_CMD = ["chromium-browser", "--kiosk", "--noerrdialogs", "--disable-infobars"]
 
 
@@ -84,7 +85,25 @@ def start_wifi_ap():
         pass
 
 
+def try_startup_update():
+    """If this is a git repo and we have network, pull latest (non-blocking, best-effort)."""
+    repo_root = Path(__file__).resolve().parent.parent
+    if not (repo_root / ".git").exists():
+        return
+    try:
+        import subprocess
+        subprocess.run(
+            ["git", "pull", "origin", "main"],
+            cwd=repo_root,
+            capture_output=True,
+            timeout=30,
+        )
+    except Exception:
+        pass
+
+
 def main():
+    try_startup_update()
     if is_configured():
         run_main_app()
         return

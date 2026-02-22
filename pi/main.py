@@ -137,8 +137,28 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     await update.message.reply_text(
         "DogPhone 🐕\n\n"
         "• When your dog presses the button, you’ll get a link to join the video call.\n"
-        "• Send /cookie to dispense a treat."
+        "• Send /cookie to dispense a treat.\n"
+        "• Send /update to pull the latest from GitHub and restart."
     )
+
+
+async def update_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /update – git pull and reboot."""
+    await update.message.reply_text("Checking for updates…")
+    try:
+        from update_check import run_update
+        ok, msg = run_update()
+        if ok:
+            await update.message.reply_text(f"✅ {msg} Restarting the device now…")
+            subprocess.Popen(
+                ["sudo", "reboot"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        else:
+            await update.message.reply_text(f"❌ Update failed: {msg}")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Error: {e}")
 
 
 def setup_gpio_button(cfg: dict, loop: asyncio.AbstractEventLoop, bot: Bot) -> None:
@@ -176,6 +196,7 @@ async def main_async() -> None:
 
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("cookie", cookie_command))
+    application.add_handler(CommandHandler("update", update_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, cookie_message))
 
     loop = asyncio.get_event_loop()

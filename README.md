@@ -39,7 +39,7 @@ When someone buys the system, they **plug in power** and the **screen shows simp
 
 1. **Plug in** the device. The screen turns on and shows:
    - *“Connect your phone to WiFi **DogPhone-Setup**”* (password on the box or sticker, e.g. `dogphone123`).
-   - A **QR code** and a URL (e.g. `http://192.168.4.1:8765`).
+   - A **QR code** and URL to open on your phone (e.g. `http://10.42.0.1:8765` — if it doesn’t load, try `http://192.168.4.1:8765`).
 2. **On your phone**: Connect to WiFi **DogPhone-Setup**, then **scan the QR code** (or open the URL in the browser). The setup page opens on your phone.
 3. **Create a Telegram bot**: In Telegram, open **@BotFather**, send `/newbot`, follow the steps, then **copy the bot token** and paste it into the setup page.
 4. **Send a message** to your new bot (e.g. “hi”), then on the setup page tap **“I sent a message – detect me”**. The device finds your Chat ID and saves it.
@@ -48,6 +48,8 @@ When someone buys the system, they **plug in power** and the **screen shows simp
 Optional: for automatic reboot after setup, allow the DogPhone user to run `sudo reboot` without a password, e.g. add a file under `/etc/sudoers.d/` (see `pi/install.sh` or docs).
 
 **Nothing starts after reboot?** DogPhone runs from **desktop autostart** (not systemd), so the desktop must be up and auto-login enabled. Run `./pi/install-image.sh` again to install the autostart entry, then reboot. See [docs/IMAGE-BUILD.md](docs/IMAGE-BUILD.md#troubleshooting).
+
+**How do I close the full-screen app?** On the setup screen, use the **“Close DogPhone (exit full screen)”** link, or connect a **USB keyboard** and press **Alt+F4**. From another computer (SSH): `pkill chromium`.
 
 ---
 
@@ -64,6 +66,7 @@ DogPhone/
 │   ├── start_setup_ap.sh      # WiFi hotspot "DogPhone-Setup" for setup
 │   ├── config.py             # Load/save config (env or file)
 │   ├── get_chat_id.py        # Optional CLI helper for Chat ID
+│   ├── update_check.py       # Git pull for updates (GitHub)
 │   ├── requirements.txt      # Python deps for Pi
 │   ├── install.sh            # Interactive install (dev or one-off)
 │   ├── install-image.sh      # Non-interactive install for ship-ready image
@@ -90,6 +93,8 @@ DogPhone/
 
 Full step-by-step: **[docs/IMAGE-BUILD.md](docs/IMAGE-BUILD.md)**.
 
+**Updating the Pi without SSH?** (e.g. device not on your network) → **[docs/UPDATE-WITHOUT-SSH.md](docs/UPDATE-WITHOUT-SSH.md)** (SD card, USB stick, or temporary WiFi).
+
 ---
 
 ## Quick start (developer)
@@ -97,6 +102,18 @@ Full step-by-step: **[docs/IMAGE-BUILD.md](docs/IMAGE-BUILD.md)**.
 1. On the Pi, clone or copy this repo.
 2. Install: `./pi/install.sh`. For **consumer-style setup**: don’t create `config.env`; on first boot run `python pi/launcher.py` — the screen shows the setup wizard with QR code; connect to **DogPhone-Setup** WiFi and complete setup on your phone. For **fast dev setup**: copy `config/config.example.env` to `config/config.env` and set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`, then run `python pi/launcher.py` or `python pi/main.py`.
 3. Press the button → you get a Telegram message with the Jitsi link. Send `/cookie` to the bot → servo runs.
+
+---
+
+## Updates (GitHub)
+
+Repo: **[https://github.com/TimothyFsr/Dogphone](https://github.com/TimothyFsr/Dogphone)**
+
+- **From the setup page** (when on DogPhone-Setup or same network): open the setup URL and tap **“Check for updates”** to run `git pull` and get the latest code. Restart the device to apply.
+- **From Telegram** (when the device is set up and on the internet): send **/update** to your DogPhone bot; it will pull the latest from GitHub and reboot.
+- **On every boot**: if the project is a git clone and the Pi has network, the launcher tries a quick `git pull` at startup (non-blocking).
+
+Install from a **git clone** so updates work: `git clone https://github.com/TimothyFsr/Dogphone.git`
 
 ---
 

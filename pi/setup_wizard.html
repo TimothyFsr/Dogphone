@@ -91,15 +91,17 @@
   <div class="container">
     <h1>🐕 DogPhone</h1>
     <p class="sub">Set up in a few steps</p>
+    <p style="margin-bottom:16px;"><a href="/exit" style="color:#94a3b8; font-size:0.9rem;">Close DogPhone (exit full screen)</a></p>
 
     <!-- Step 0: On-screen instructions (for the Pi display) -->
     <div class="step" id="step-scan">
       <h2>1. Open setup on your phone</h2>
-      <p>Connect your phone to WiFi <strong>DogPhone-Setup</strong> (password on the box or sticker).</p>
+      <p>Connect your phone to WiFi <strong>DogPhone-Setup</strong>. Password: <strong>dogphone123</strong>. Then open <strong>http://10.42.0.1:8765</strong> in your browser (if it doesn’t load, try http://192.168.4.1:8765).</p>
       <p>Then <strong>scan this QR code</strong> with your camera to open the setup page:</p>
       <div id="qrcode"></div>
-      <p>Or open this address in your browser:</p>
+      <p>Or open one of these in your browser (try the first; if it doesn’t load, try the second):</p>
       <div class="url-box" id="setup-url"></div>
+      <div class="url-box url-box-alt" id="setup-url-alt" style="margin-top:8px;"></div>
     </div>
 
     <!-- Steps shown when opened on phone -->
@@ -112,10 +114,13 @@
     </div>
 
     <div class="step hidden" id="step-message">
-      <h2>3. Send a message to your bot</h2>
-      <p>In Telegram, open a chat with your new bot and send any message (e.g. <strong>hi</strong>).</p>
+      <h2>3. Get your Chat ID</h2>
+      <p>In Telegram, open a chat with your new bot and send any message (e.g. <strong>hi</strong>). Then tap below to detect it.</p>
       <button type="button" id="btn-detect">I sent a message – detect me</button>
       <p class="error-msg hidden" id="err-detect"></p>
+      <p style="margin-top:16px; color:#94a3b8; font-size:0.9rem;">If detection doesn’t work (e.g. no internet on the device), get your Chat ID manually: in Telegram, open <strong>@userinfobot</strong> and send it any message – it will reply with your ID (a number). Paste that number below:</p>
+      <input type="text" id="chat-id-manual" placeholder="Or paste your Chat ID (e.g. 123456789)" inputmode="numeric" pattern="[0-9\-]+" style="margin-top:8px;">
+      <button type="button" id="btn-manual-chat" class="secondary" style="margin-top:8px;">Use this Chat ID and finish</button>
     </div>
 
     <div class="step hidden" id="step-done">
@@ -123,12 +128,21 @@
       <p>Setup is complete. The device will restart and your dog can start calling you.</p>
       <div class="done-msg hidden" id="done-msg">Restarting in a few seconds…</div>
     </div>
+
+    <div class="step" style="margin-top:24px;">
+      <h2>Update</h2>
+      <p>Get the latest version from <a href="https://github.com/TimothyFsr/Dogphone" target="_blank" rel="noopener">GitHub</a>. If this device was installed from git, you can update now.</p>
+      <button type="button" id="btn-update" class="secondary">Check for updates</button>
+      <p class="error-msg hidden" id="err-update"></p>
+      <p class="done-msg hidden" id="msg-update"></p>
+    </div>
   </div>
 
   <script>
     const API = '';
     const qrEl = document.getElementById('qrcode');
     const urlEl = document.getElementById('setup-url');
+    const urlAltEl = document.getElementById('setup-url-alt');
     const stepScan = document.getElementById('step-scan');
     const stepTelegram = document.getElementById('step-telegram');
     const stepMessage = document.getElementById('step-message');
@@ -139,6 +153,11 @@
     const errToken = document.getElementById('err-token');
     const errDetect = document.getElementById('err-detect');
     const doneMsg = document.getElementById('done-msg');
+    const chatIdManualInput = document.getElementById('chat-id-manual');
+    const btnManualChat = document.getElementById('btn-manual-chat');
+    const btnUpdate = document.getElementById('btn-update');
+    const errUpdate = document.getElementById('err-update');
+    const msgUpdate = document.getElementById('msg-update');
 
     async function api(path, opts = {}) {
       const base = location.origin;
@@ -150,6 +169,12 @@
       const s = await api('/api/status');
       const url = s.setup_url || (location.protocol + '//' + location.host);
       urlEl.innerHTML = '<a href="' + url + '">' + url + '</a>';
+      if (s.alternate_urls && s.alternate_urls.length) {
+        urlAltEl.innerHTML = s.alternate_urls.map(u => '<a href="' + u + '">' + u + '</a>').join(' &nbsp; ');
+        urlAltEl.style.display = 'block';
+      } else {
+        urlAltEl.style.display = 'none';
+      }
       if (typeof QRCode !== 'undefined') {
         QRCode.toCanvas(url, { width: 220, margin: 1 }, (err, canvas) => {
           if (!err && canvas) qrEl.appendChild(canvas);
@@ -199,14 +224,69 @@
           doneMsg.classList.remove('hidden');
           setTimeout(() => api('/api/complete', { method: 'POST', body: JSON.stringify({ chat_id: r.chat_id }) }), 500);
         } else {
-          errDetect.textContent = 'No message yet. Send a message to your bot in Telegram, then try again.';
+          if (r.error === 'network_error') {
+            errDetect.textContent = 'Device can’t reach Telegram (no internet on hotspot). Use “Or paste your Chat ID” below.';
+          } else if (r.error === 'no_updates') {
+            errDetect.textContent = 'No message yet. Send a message to your bot in Telegram, then try again.';
+          } else if (r.error === 'invalid_token') {
+            errDetect.textContent = 'Invalid bot token. Check step 2 and save the token again.';
+          } else {
+            errDetect.textContent = 'Could not detect. Send a message to your bot, or enter your Chat ID below.';
+          }
           errDetect.classList.remove('hidden');
         }
       } catch (e) {
-        errDetect.textContent = 'Network error.'; errDetect.classList.remove('hidden');
+        errDetect.textContent = 'Network error. Use “Or paste your Chat ID” below.';
+        errDetect.classList.remove('hidden');
       }
       btnDetect.disabled = false;
       btnDetect.textContent = 'I sent a message – detect me';
+    });
+
+    btnManualChat.addEventListener('click', async () => {
+      const cid = (chatIdManualInput.value || '').trim().replace(/\s/g, '');
+      if (!cid || !/^-?\d+$/.test(cid)) {
+        errDetect.textContent = 'Enter a number (your Chat ID from @userinfobot).';
+        errDetect.classList.remove('hidden');
+        return;
+      }
+      errDetect.classList.add('hidden');
+      btnManualChat.disabled = true;
+      try {
+        const r = await api('/api/complete', { method: 'POST', body: JSON.stringify({ chat_id: cid }) });
+        if (r.ok) {
+          stepMessage.classList.add('hidden');
+          stepDone.classList.remove('hidden');
+          doneMsg.classList.remove('hidden');
+        } else {
+          errDetect.textContent = 'Failed to save. Try again.';
+          errDetect.classList.remove('hidden');
+        }
+      } catch (e) {
+        errDetect.textContent = 'Network error.';
+        errDetect.classList.remove('hidden');
+      }
+      btnManualChat.disabled = false;
+    });
+
+    btnUpdate.addEventListener('click', async () => {
+      errUpdate.classList.add('hidden');
+      msgUpdate.classList.add('hidden');
+      btnUpdate.disabled = true;
+      try {
+        const r = await api('/api/update', { method: 'POST' });
+        if (r.ok) {
+          msgUpdate.textContent = r.message || 'Done. Restart the device to apply changes.';
+          msgUpdate.classList.remove('hidden');
+        } else {
+          errUpdate.textContent = r.message || 'Update failed.';
+          errUpdate.classList.remove('hidden');
+        }
+      } catch (e) {
+        errUpdate.textContent = 'Network error.';
+        errUpdate.classList.remove('hidden');
+      }
+      btnUpdate.disabled = false;
     });
 
     loadStatus();

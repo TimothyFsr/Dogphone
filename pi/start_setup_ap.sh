@@ -23,4 +23,4 @@ fi
 # If already connected to a network, this may change connectivity.
 nmcli device wifi hotspot ifname "$IFACE" ssid "$SSID" password "$PASSPHRASE"
 echo "Hotspot started: $SSID (password: $PASSPHRASE)"
-echo "Connect your phone to $SSID, then open http://192.168.4.1:8765 or scan the QR code on the screen."
+echo "Connect your phone to $SSID, then open http://10.42.0.1:8765 (or http://192.168.4.1:8765) or scan the QR code on the screen."

@@ -29,23 +29,31 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_FILE = REPO_ROOT / "config" / "config.env"
 SETUP_HTML = Path(__file__).resolve().parent / "setup_wizard.html"
 
-# Default AP IP when Pi is in hotspot mode (create_ap / typical hostapd)
-SETUP_AP_IP = "192.168.4.1"
+# nmcli hotspot uses 10.42.0.1 by default; some setups use 192.168.4.1
+SETUP_AP_IP_DEFAULT = "10.42.0.1"
+SETUP_AP_IP_LEGACY = "192.168.4.1"
 
 
 def get_setup_url() -> str:
-    """URL the phone should open: prefer this machine's IP on port 8765."""
+    """URL the phone should open when connected to DogPhone-Setup WiFi."""
     port = load_config().get("setup_port", 8765)
+    # Prefer actual IP of this machine on the hotspot interface (when Pi is the AP)
     try:
-        import socket
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.settimeout(0)
-        s.connect(("192.168.4.1", 1))
-        ip = s.getsockname()[0]
-        s.close()
+        import subprocess
+        out = subprocess.check_output(
+            ["ip", "-4", "-o", "addr", "show", "scope", "global"],
+            text=True, timeout=2,
+        )
+        for line in out.strip().splitlines():
+            # Format: 2: wlan0 inet 10.42.0.1/24 ...
+            parts = line.split()
+            if len(parts) >= 4 and parts[2] == "inet":
+                ip = parts[3].split("/")[0]
+                if ip.startswith("10.42.") or ip.startswith("192.168."):
+                    return f"http://{ip}:{port}"
     except Exception:
-        ip = SETUP_AP_IP
-    return f"http://{ip}:{port}"
+        pass
+    return f"http://{SETUP_AP_IP_DEFAULT}:{port}"
 
 
 def write_config(updates: dict) -> None:
@@ -68,25 +76,31 @@ def write_config(updates: dict) -> None:
     log.info("Wrote config: %s", CONFIG_FILE)
 
 
-def fetch_chat_id(token: str) -> str | None:
-    """Get latest chat id from Telegram getUpdates."""
+def fetch_chat_id(token: str) -> tuple[str | None, str | None]:
+    """Get latest chat id from Telegram getUpdates. Returns (chat_id, error_type)."""
     try:
         import requests
         r = requests.get(
             f"https://api.telegram.org/bot{token}/getUpdates",
             timeout=10,
         )
-        r.raise_for_status()
         data = r.json()
         if not data.get("ok"):
-            return None
+            return None, "invalid_token"
         for u in reversed(data.get("result", [])):
             msg = u.get("message") or u.get("edited_message")
             if msg and "chat" in msg:
-                return str(msg["chat"]["id"])
+                return str(msg["chat"]["id"]), None
+        return None, "no_updates"
+    except requests.exceptions.Timeout:
+        log.warning("getUpdates timeout (Pi may have no internet when on hotspot)")
+        return None, "network_error"
+    except requests.exceptions.RequestException as e:
+        log.warning("getUpdates request failed: %s", e)
+        return None, "network_error"
     except Exception as e:
         log.warning("getUpdates failed: %s", e)
-    return None
+        return None, "network_error"
 
 
 def connect_wifi(ssid: str, password: str) -> bool:
@@ -129,9 +143,16 @@ def create_app():
     @app.route("/api/status")
     def api_status():
         cfg = load_config()
+        port = cfg.get("setup_port", 8765)
         setup_url = get_setup_url()
+        # When on hotspot, nmcli often uses 10.42.0.1; some setups use 192.168.4.1
+        alternate_urls = [
+            f"http://{SETUP_AP_IP_DEFAULT}:{port}",
+            f"http://{SETUP_AP_IP_LEGACY}:{port}",
+        ]
         return jsonify({
             "setup_url": setup_url,
+            "alternate_urls": [u for u in alternate_urls if u != setup_url],
             "has_token": bool(cfg.get("telegram_bot_token")),
             "chat_id": cfg.get("telegram_chat_id") or "",
             "ready": bool(cfg.get("telegram_bot_token") and cfg.get("telegram_chat_id")),
@@ -151,12 +172,12 @@ def create_app():
         cfg = load_config()
         token = cfg.get("telegram_bot_token")
         if not token:
-            return jsonify({"ok": False, "chat_id": None})
-        cid = fetch_chat_id(token)
+            return jsonify({"ok": False, "chat_id": None, "error": "no_token"})
+        cid, err = fetch_chat_id(token)
         if cid:
             write_config({"TELEGRAM_CHAT_ID": cid})
             return jsonify({"ok": True, "chat_id": cid})
-        return jsonify({"ok": False, "chat_id": None})
+        return jsonify({"ok": False, "chat_id": None, "error": err or "unknown"})
 
     @app.route("/api/wifi", methods=["POST"])
     def api_wifi():
@@ -168,6 +189,29 @@ def create_app():
         if connect_wifi(ssid, password):
             return jsonify({"ok": True})
         return jsonify({"ok": False, "error": "Could not connect. Check password and try again."}), 400
+
+    @app.route("/exit")
+    def exit_page():
+        """Show how to close the full-screen app."""
+        return (
+            "<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'>"
+            "<title>Close DogPhone</title></head><body style='font-family:sans-serif;padding:2rem;max-width:400px;margin:0 auto;'>"
+            "<h1>Close DogPhone</h1>"
+            "<p><strong>With a USB keyboard:</strong> Press <kbd>Alt</kbd>+<kbd>F4</kbd> to close this window.</p>"
+            "<p><strong>Without keyboard:</strong> From another computer on the same network, SSH in and run: <code>pkill chromium</code></p>"
+            "<p><a href='/setup'>← Back to setup</a></p>"
+            "</body></html>"
+        )
+
+    @app.route("/api/update", methods=["POST"])
+    def api_update():
+        """Pull latest from GitHub (https://github.com/TimothyFsr/Dogphone)."""
+        try:
+            from update_check import run_update
+            ok, msg = run_update()
+            return jsonify({"ok": ok, "message": msg})
+        except Exception as e:
+            return jsonify({"ok": False, "message": str(e)[:300]})
 
     @app.route("/api/complete", methods=["POST"])
     def api_complete():
