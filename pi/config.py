@@ -50,4 +50,5 @@ def load_config() -> dict:
 def get_jitsi_url(cfg: dict) -> str:
     room = cfg["jitsi_room"].replace(" ", "")
     domain = cfg["jitsi_domain"].rstrip("/")
-    return f"https://{domain}/{room}"
+    # Disable Jitsi's pre-join screen so the Pi joins the room directly.
+    return f"https://{domain}/{room}#config.prejoinConfig.enabled=false"
