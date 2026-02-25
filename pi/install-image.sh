@@ -42,30 +42,10 @@ Terminal=false
 X-GNOME-Autostart-enabled=true
 EOF
 chown -R "$CURRENT_USER:$CURRENT_USER" "$AUTOSTART_DIR" 2>/dev/null || true
-# Optional: also enable systemd fallback (so launcher runs even if desktop autostart fails)
-SERVICE_FILE="/etc/systemd/system/dogphone.service"
-sudo tee "$SERVICE_FILE" >/dev/null << SVCEOF
-[Unit]
-Description=DogPhone
-After=graphical.target network-online.target
-WantedBy=graphical.target
-
-[Service]
-Type=simple
-User=$CURRENT_USER
-WorkingDirectory=$REPO_ROOT
-Environment=DISPLAY=:0
-ExecStartPre=/bin/sleep 20
-ExecStart=/usr/bin/python3 $LAUNCHER_PATH
-Restart=on-failure
-RestartSec=10
-
-[Install]
-WantedBy=graphical.target
-SVCEOF
-sudo systemctl daemon-reload
-sudo systemctl enable dogphone
-echo "Installed autostart + systemd fallback: DogPhone runs when the desktop loads (or 20s after boot via systemd)."
+# Disable systemd so only ONE launcher runs (autostart). Two starters = two main.py = Telegram 409 + port in use.
+sudo systemctl disable dogphone 2>/dev/null || true
+sudo systemctl stop dogphone 2>/dev/null || true
+echo "Installed autostart: DogPhone runs when the desktop loads (only one instance)."
 
 # Optional: also enable systemd so it can restart the app if it crashes (runs in background;
 # the visible browser is started by the autostart process). Disabled by default to avoid
