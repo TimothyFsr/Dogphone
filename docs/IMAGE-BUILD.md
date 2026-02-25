@@ -175,6 +175,27 @@ DogPhone is started by **desktop autostart** (not systemd), so it only runs afte
    ```
    Then reboot.
 
+### "Unlock keyring" or "Authentication required" on startup
+
+With **auto-login**, the desktop starts without a password, so the **GNOME keyring** stays locked and can show an "Unlock keyring" / "Authentication required" dialog when Chromium starts.
+
+**Fix (do once, with keyboard and screen):**
+
+1. When the dialog appears, enter your **user password** (for `dogphone` or `pi`) to unlock for this session.
+2. Open **Passwords and Keys**. If you don’t have it, install and run:  
+   `sudo apt install seahorse`  
+   then run:  
+   `seahorse`  
+   (Or from the menu: **Accessories → Passwords and Keys**.)
+3. Right-click **Login** (or **Default** keyring) → **Change Password**.
+4. Enter your current password, then set the **new password to empty** (leave blank) and confirm.
+5. Accept the warning. After that, auto-login will no longer show the keyring prompt.
+
+**Alternative (no GUI):** Remove the keyring so it’s recreated without a password (any passwords stored in the keyring will be lost):  
+`rm -f ~/.local/share/keyrings/login.keyring` then reboot. On first login you may be asked to set a keyring password — choose **empty** if offered.
+
+**When building the image:** Do this once on your build Pi before creating the golden image, so shipped units never see the prompt.
+
 ### Other issues
 
 | Problem | What to check |

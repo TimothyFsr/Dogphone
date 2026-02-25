@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DogPhone</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #e2e8f0;
+      text-align: center;
+      padding: 2rem;
+    }
+    h1 { font-size: 2.5rem; margin: 0 0 1rem; }
+    p { font-size: 1.25rem; color: #94a3b8; max-width: 360px; line-height: 1.5; }
+    .emoji { font-size: 4rem; margin-bottom: 0.5rem; }
+    .btn {
+      display: inline-block;
+      margin-top: 1.5rem;
+      padding: 1rem 2rem;
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #1a1a2e;
+      background: #e879f9;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .btn:hover { background: #f0abfc; }
+    .btn:active { transform: scale(0.98); }
+  </style>
+</head>
+<body>
+  <div class="emoji">🐕</div>
+  <h1>DogPhone ready</h1>
+  <p>Press the button to call. Send <strong>/cookie</strong> in Telegram to give a treat.</p>
+  <a href="http://127.0.0.1:8766/trigger-call" class="btn">Test call (no button needed)</a>
+</body>
+</html>

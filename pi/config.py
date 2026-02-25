@@ -1,6 +1,9 @@
 """
 Load DogPhone config from environment or config.env file.
 """
+# Bump this when you release; shown on status page and in Telegram /version
+VERSION = "1.0.0"
+
 import os
 import socket
 from pathlib import Path

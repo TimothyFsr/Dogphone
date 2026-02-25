@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DogPhone Status</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #e2e8f0;
+      padding: 1.5rem;
+      line-height: 1.5;
+    }
+    h1 { font-size: 1.75rem; margin: 0 0 1rem; }
+    .section {
+      background: #16213e;
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 1rem;
+    }
+    .section h2 { font-size: 1rem; margin: 0 0 0.5rem; color: #94a3b8; }
+    .section p { margin: 0.25rem 0; }
+    .ok { color: #86efac; }
+    .warn { color: #fcd34d; }
+    .err { color: #f87171; }
+    .btn {
+      display: inline-block;
+      margin-top: 0.5rem;
+      padding: 0.75rem 1.5rem;
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #1a1a2e;
+      background: #e879f9;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .btn:hover { background: #f0abfc; }
+    .btn:disabled, .btn.disabled { opacity: 0.5; cursor: not-allowed; }
+    #main-status { margin-top: 0.5rem; }
+  </style>
+</head>
+<body>
+  <h1>DogPhone</h1>
+  <p style="color:#64748b; font-size:0.9rem;">Version {{ version }}</p>
+
+  <div class="section">
+    <h2>Network</h2>
+    <p><strong>IP:</strong> {{ network_ips }}</p>
+    <p><strong>Internet:</strong> <span class="{{ internet_class }}">{{ internet_status }}</span></p>
+  </div>
+
+  <div class="section">
+    <h2>Telegram</h2>
+    <p><strong>Bot token:</strong> <span class="{{ token_class }}">{{ token_status }}</span></p>
+    <p><strong>Chat ID:</strong> <span class="{{ chat_class }}">{{ chat_status }}</span></p>
+    <p><strong>Jitsi room:</strong> {{ jitsi_room }}</p>
+  </div>
+
+  <div class="section">
+    <h2>Test call</h2>
+    <p>Trigger a call and send the link to your Telegram (same as pressing the physical button).</p>
+    <p id="main-status">Main app: <span id="main-app-status">checking…</span></p>
+    <a href="http://127.0.0.1:8766/trigger-call" class="btn" id="test-call-btn">Test call</a>
+  </div>
+
+  <script>
+    (function() {
+      var statusEl = document.getElementById('main-app-status');
+      var btn = document.getElementById('test-call-btn');
+      function check() {
+        fetch('/api/main-up').then(function(r) { return r.text(); }).then(function(t) {
+          if (t === '1') {
+            statusEl.textContent = 'running';
+            statusEl.className = 'ok';
+            btn.classList.remove('disabled');
+          } else {
+            statusEl.textContent = 'not running (Test call will not work)';
+            statusEl.className = 'warn';
+            btn.classList.add('disabled');
+          }
+        }).catch(function() {
+          statusEl.textContent = 'not running (Test call will not work)';
+          statusEl.className = 'warn';
+          btn.classList.add('disabled');
+        });
+      }
+      check();
+      setInterval(check, 5000);
+    })();
+  </script>
+</body>
+</html>

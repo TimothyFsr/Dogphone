@@ -51,6 +51,10 @@ Optional: for automatic reboot after setup, allow the DogPhone user to run `sudo
 
 **How do I close the full-screen app?** On the setup screen, use the **“Close DogPhone (exit full screen)”** link, or connect a **USB keyboard** and press **Alt+F4**. From another computer (SSH): `pkill chromium`.
 
+**"Unlock keyring" on startup?** With auto-login the keyring prompts. Fix once: open **Passwords and Keys** (`seahorse`), right-click **Login** keyring → **Change Password** → set new password to **empty**. See [docs/IMAGE-BUILD.md](docs/IMAGE-BUILD.md#unlock-keyring-or-authentication-required-on-startup).
+
+**After setup, nothing on the screen?** Once configured, the app shows a **"DogPhone ready"** standby screen. If the screen stays blank: (1) Test from Telegram — send **/cookie**; if the bot replies, the app is running. (2) Press the **button** — you should get a Telegram message with the call link. (3) If nothing works, SSH in and run `python3 ~/Dogphone/pi/main.py` to see any error messages.
+
 ---
 
 ## Project layout
@@ -63,6 +67,7 @@ DogPhone/
 │   ├── main.py               # Main app: button, Telegram, Jitsi, servo
 │   ├── setup_server.py       # Setup web server (wizard + API)
 │   ├── setup_wizard.html      # On-screen + phone setup UI (with QR code)
+│   ├── status_page.html       # Status + Test call (network, Telegram, main app)
 │   ├── start_setup_ap.sh      # WiFi hotspot "DogPhone-Setup" for setup
 │   ├── config.py             # Load/save config (env or file)
 │   ├── get_chat_id.py        # Optional CLI helper for Chat ID
@@ -114,6 +119,8 @@ Repo: **[https://github.com/TimothyFsr/Dogphone](https://github.com/TimothyFsr/D
 - **On every boot**: if the project is a git clone and the Pi has network, the launcher tries a quick `git pull` at startup (non-blocking).
 
 Install from a **git clone** so updates work: `git clone https://github.com/TimothyFsr/Dogphone.git`
+
+You don’t need to copy files to the Pi: push to GitHub, then reboot the Pi (or send **/update** in Telegram). **Version:** bump `VERSION` in `pi/config.py`; it appears on the status page and in Telegram (**/version**).
 
 ---
 

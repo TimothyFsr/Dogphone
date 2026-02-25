@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 """
-DogPhone launcher: show setup on screen (with QR) if not configured, else run main app.
-Run this on boot so the display shows either the setup wizard or the normal app.
+DogPhone launcher: always show a status page first, then run setup or main app.
+Run this on boot so you always see something (status with network, Telegram, Test call button).
 """
 import os
 import subprocess
 import sys
 import time
+import threading
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from config import load_config
+from config import load_config, VERSION
 
 SETUP_PORT = 8765
-# Use --kiosk for full-screen; add --disable-close to prevent accidental close, or omit for closable window
+STATUS_PORT = 8767
 BROWSER_CMD = ["chromium-browser", "--kiosk", "--noerrdialogs", "--disable-infobars"]
 
 
@@ -63,8 +64,17 @@ def open_browser(url: str):
             pass
 
 
+def open_standby_screen():
+    """Show 'DogPhone ready' on the display (before main app takes over)."""
+    standby = Path(__file__).resolve().parent / "standby.html"
+    if not standby.exists():
+        return
+    open_browser(standby.as_uri())
+
+
 def run_main_app():
     """Run the real DogPhone app (blocking)."""
+    open_standby_screen()
     main_py = Path(__file__).resolve().parent / "main.py"
     os.execv(sys.executable, [sys.executable, str(main_py)])
 
@@ -91,7 +101,6 @@ def try_startup_update():
     if not (repo_root / ".git").exists():
         return
     try:
-        import subprocess
         subprocess.run(
             ["git", "pull", "origin", "main"],
             cwd=repo_root,
@@ -102,24 +111,111 @@ def try_startup_update():
         pass
 
 
+def get_network_info():
+    """Return (ips_str, internet_ok)."""
+    ips = []
+    try:
+        r = subprocess.run(
+            ["hostname", "-I"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        if r.returncode == 0 and r.stdout:
+            ips = r.stdout.strip().split()
+    except Exception:
+        pass
+    ips_str = " ".join(ips) if ips else "—"
+    try:
+        import urllib.request
+        urllib.request.urlopen("https://api.telegram.org", timeout=3)
+        return ips_str, True
+    except Exception:
+        return ips_str, False
+
+
+def run_status_server():
+    """Serve the status page (network, Telegram config, Test call link) on STATUS_PORT."""
+    try:
+        from flask import Flask
+        app = Flask(__name__)
+        html_path = Path(__file__).resolve().parent / "status_page.html"
+
+        @app.route("/api/main-up")
+        def main_up():
+            try:
+                import urllib.request
+                urllib.request.urlopen(f"http://127.0.0.1:8766/", timeout=2)
+                return "1"
+            except Exception:
+                return "0"
+
+        @app.route("/")
+        def status():
+            cfg = load_config()
+            ips, internet_ok = get_network_info()
+            token_ok = bool(cfg.get("telegram_bot_token"))
+            chat_ok = bool(cfg.get("telegram_chat_id"))
+            token_status = "set" if token_ok else "missing"
+            token_class = "ok" if token_ok else "err"
+            chat_status = "set" if chat_ok else "missing"
+            if chat_ok and cfg.get("telegram_chat_id"):
+                chat_status = "set (" + str(cfg["telegram_chat_id"]) + ")"
+            chat_class = "ok" if chat_ok else "err"
+            internet_status = "yes" if internet_ok else "no"
+            internet_class = "ok" if internet_ok else "warn"
+            jitsi_room = cfg.get("jitsi_room", "—")
+            html = open(html_path).read()
+            html = html.replace("{{ version }}", VERSION)
+            html = html.replace("{{ network_ips }}", ips or "—")
+            html = html.replace("{{ internet_status }}", internet_status)
+            html = html.replace("{{ internet_class }}", internet_class)
+            html = html.replace("{{ token_status }}", token_status)
+            html = html.replace("{{ token_class }}", token_class)
+            html = html.replace("{{ chat_status }}", chat_status)
+            html = html.replace("{{ chat_class }}", chat_class)
+            html = html.replace("{{ jitsi_room }}", jitsi_room)
+            return html
+
+        app.run(host="127.0.0.1", port=STATUS_PORT, debug=False, use_reloader=False)
+    except Exception as e:
+        print("Status server failed:", e, file=sys.stderr)
+
+
 def main():
     try_startup_update()
-    if is_configured():
-        run_main_app()
+
+    # Always start status server (so status page is available); open the right page
+    t = threading.Thread(target=run_status_server, daemon=True)
+    t.start()
+    time.sleep(1)
+
+    if not is_configured():
+        # Setup mode: WiFi AP + setup wizard
+        start_wifi_ap()
+        if not start_setup_server():
+            sys.exit(1)
+        open_browser(f"http://127.0.0.1:{SETUP_PORT}/setup")
+        try:
+            while True:
+                time.sleep(60)
+                if is_configured():
+                    break
+        except KeyboardInterrupt:
+            pass
         return
 
-    # Setup mode: start WiFi AP, then web server and show wizard on screen (with QR code)
-    start_wifi_ap()
-    if not start_setup_server():
-        sys.exit(1)
-    url = f"http://127.0.0.1:{SETUP_PORT}/setup"
-    open_browser(url)
-    # Keep launcher alive so server keeps running; when user completes setup they reboot
+    # Configured: show status page (network, Telegram, Test call) and start main in subprocess
+    open_browser(f"http://127.0.0.1:{STATUS_PORT}/")
+    main_py = Path(__file__).resolve().parent / "main.py"
+    subprocess.Popen(
+        [sys.executable, str(main_py)],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
     try:
         while True:
             time.sleep(60)
-            if is_configured():
-                break
     except KeyboardInterrupt:
         pass
 

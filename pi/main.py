@@ -12,12 +12,13 @@ import logging
 import os
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 # Add pi dir so config can be found when run from repo root
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from config import load_config, get_jitsi_url
+from config import load_config, get_jitsi_url, VERSION
 
 logging.basicConfig(
     level=logging.INFO,
@@ -64,6 +65,32 @@ def run_servo_once(cfg: dict) -> None:
         log.info("Servo triggered (cookie dispensed)")
     except Exception as e:
         log.warning("Servo trigger failed: %s", e)
+
+
+def open_standby_screen() -> None:
+    """Show a 'DogPhone ready' screen on the display."""
+    standby_path = Path(__file__).resolve().parent / "standby.html"
+    if not standby_path.exists():
+        return
+    url = standby_path.as_uri()  # file:///path/to/standby.html
+    display = os.environ.get("DISPLAY", ":0")
+    cmd = [
+        "chromium-browser",
+        "--kiosk",
+        "--noerrdialogs",
+        "--disable-infobars",
+        url,
+    ]
+    try:
+        subprocess.Popen(
+            cmd,
+            env={**os.environ, "DISPLAY": display},
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        log.info("Opened standby screen")
+    except FileNotFoundError:
+        pass
 
 
 def open_jitsi_in_browser(url: str) -> None:
@@ -132,6 +159,11 @@ async def cookie_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             await cookie_command(update, context)
 
 
+async def version_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /version – show installed version."""
+    await update.message.reply_text(f"DogPhone version {VERSION}")
+
+
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /start – brief help."""
     await update.message.reply_text(
@@ -159,6 +191,57 @@ async def update_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             await update.message.reply_text(f"❌ Update failed: {msg}")
     except Exception as e:
         await update.message.reply_text(f"❌ Error: {e}")
+
+
+# Shared state for the test-call HTTP server (no physical button)
+_control_cfg = None
+_control_bot = None
+_control_loop = None
+CONTROL_PORT = 8766
+
+
+def _run_trigger_call_server():
+    """Run a minimal Flask server for the 'Test call' button (daemon thread)."""
+    try:
+        from flask import Flask
+        app = Flask(__name__)
+
+        @app.route("/trigger-call")
+        def trigger_call():
+            global _control_cfg, _control_bot, _control_loop
+            if not _control_cfg or not _control_bot:
+                return "<h1>Not ready</h1><p>App still starting.</p>", 503
+            url = get_jitsi_url(_control_cfg)
+            open_jitsi_in_browser(url)
+            chat_id = _control_cfg.get("telegram_chat_id")
+            if chat_id and _control_bot and _control_loop:
+                try:
+                    future = asyncio.run_coroutine_threadsafe(
+                        _control_bot.send_message(
+                            chat_id=chat_id,
+                            text=f"🐕 Your dog is calling!\n\nJoin the video call:\n{url}",
+                        ),
+                        _control_loop,
+                    )
+                    future.result(timeout=10)
+                except Exception as e:
+                    log.warning("Test call Telegram send failed: %s", e)
+            return (
+                "<!DOCTYPE html><html><body style='font-family:sans-serif;padding:2rem;'>"
+                "<h1>Call started</h1><p>Check your Telegram for the link. "
+                "<a href='/'>Back</a></p></body></html>"
+            )
+
+        @app.route("/")
+        def home():
+            standby = Path(__file__).resolve().parent / "standby.html"
+            if standby.exists():
+                return open(standby).read()
+            return "<h1>DogPhone</h1><p><a href='/trigger-call'>Test call</a></p>"
+
+        app.run(host="127.0.0.1", port=CONTROL_PORT, debug=False, use_reloader=False)
+    except Exception as e:
+        log.warning("Control server failed: %s", e)
 
 
 def setup_gpio_button(cfg: dict, loop: asyncio.AbstractEventLoop, bot: Bot) -> None:
@@ -197,12 +280,18 @@ async def main_async() -> None:
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("cookie", cookie_command))
     application.add_handler(CommandHandler("update", update_command))
+    application.add_handler(CommandHandler("version", version_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, cookie_message))
 
     loop = asyncio.get_event_loop()
     setup_gpio_button(cfg, loop, application.bot)
 
-    log.info("DogPhone running. Press the button to call; send /cookie in Telegram to treat.")
+    global _control_cfg, _control_bot, _control_loop
+    _control_cfg, _control_bot, _control_loop = cfg, application.bot, loop
+    t = threading.Thread(target=_run_trigger_call_server, daemon=True)
+    t.start()
+
+    log.info("DogPhone running. Press the button to call (or use Test call on screen); send /cookie in Telegram to treat.")
     await application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
