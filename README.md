@@ -53,7 +53,7 @@ Optional: for automatic reboot after setup, allow the DogPhone user to run `sudo
 
 **"Unlock keyring" on startup?** With auto-login the keyring prompts. Fix once: open **Passwords and Keys** (`seahorse`), right-click **Login** keyring → **Change Password** → set new password to **empty**. See [docs/IMAGE-BUILD.md](docs/IMAGE-BUILD.md#unlock-keyring-or-authentication-required-on-startup).
 
-**After setup, nothing on the screen?** Once configured, the app shows a **"DogPhone ready"** standby screen. If the screen stays blank: (1) Test from Telegram — send **/cookie**; if the bot replies, the app is running. (2) Press the **button** — you should get a Telegram message with the call link. (3) If nothing works, SSH in and run `python3 ~/Dogphone/pi/main.py` to see any error messages.
+**Nothing starts after reboot?** The launcher (and auto-update) only run when something starts them at boot. See **[docs/NOTHING-STARTS.md](docs/NOTHING-STARTS.md)** for: check autostart, auto-login, run launcher by hand to see errors, and optional systemd fallback.
 
 ---
 

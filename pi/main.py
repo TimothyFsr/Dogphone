@@ -262,6 +262,7 @@ def setup_gpio_button(cfg: dict, loop: asyncio.AbstractEventLoop, bot: Bot) -> N
 
 
 async def main_async() -> None:
+    """Async entrypoint – we manage the event loop and start telegram-application manually."""
     if Application is None:
         log.error("Install Telegram: pip install python-telegram-bot")
         sys.exit(1)
@@ -283,7 +284,8 @@ async def main_async() -> None:
     application.add_handler(CommandHandler("version", version_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, cookie_message))
 
-    loop = asyncio.get_event_loop()
+    # Get the running loop and wire up GPIO + HTTP control server for Test call
+    loop = asyncio.get_running_loop()
     setup_gpio_button(cfg, loop, application.bot)
 
     global _control_cfg, _control_bot, _control_loop
@@ -292,7 +294,12 @@ async def main_async() -> None:
     t.start()
 
     log.info("DogPhone running. Press the button to call (or use Test call on screen); send /cookie in Telegram to treat.")
-    await application.run_polling(allowed_updates=Update.ALL_TYPES)
+
+    # Fully async startup: initialize, start, then start polling and idle
+    await application.initialize()
+    await application.start()
+    await application.updater.start_polling(allowed_updates=Update.ALL_TYPES)
+    await application.updater.idle()
 
 
 def main() -> None:

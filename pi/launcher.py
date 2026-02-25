@@ -184,6 +184,16 @@ def run_status_server():
 
 def main():
     try_startup_update()
+    # If status server is already running, another launcher instance is up; exit
+    try:
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(1)
+        s.connect(("127.0.0.1", STATUS_PORT))
+        s.close()
+        return
+    except Exception:
+        pass
 
     # Always start status server (so status page is available); open the right page
     t = threading.Thread(target=run_status_server, daemon=True)
