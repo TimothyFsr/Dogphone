@@ -261,8 +261,8 @@ def setup_gpio_button(cfg: dict, loop: asyncio.AbstractEventLoop, bot: Bot) -> N
         log.warning("Could not setup button GPIO %s: %s", pin, e)
 
 
-async def main_async() -> None:
-    """Async entrypoint – we manage the event loop and start telegram-application manually."""
+def main() -> None:
+    """Entry point – use python-telegram-bot's run_polling to manage the event loop."""
     if Application is None:
         log.error("Install Telegram: pip install python-telegram-bot")
         sys.exit(1)
@@ -284,26 +284,25 @@ async def main_async() -> None:
     application.add_handler(CommandHandler("version", version_command))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, cookie_message))
 
-    # Get the running loop and wire up GPIO + HTTP control server for Test call
-    loop = asyncio.get_running_loop()
-    setup_gpio_button(cfg, loop, application.bot)
+    async def post_init(app: Application) -> None:
+        """Called by PTB after initialization, inside the running event loop."""
+        loop = asyncio.get_running_loop()
+        setup_gpio_button(cfg, loop, app.bot)
 
-    global _control_cfg, _control_bot, _control_loop
-    _control_cfg, _control_bot, _control_loop = cfg, application.bot, loop
-    t = threading.Thread(target=_run_trigger_call_server, daemon=True)
-    t.start()
+        global _control_cfg, _control_bot, _control_loop
+        _control_cfg, _control_bot, _control_loop = cfg, app.bot, loop
+        t = threading.Thread(target=_run_trigger_call_server, daemon=True)
+        t.start()
 
-    log.info("DogPhone running. Press the button to call (or use Test call on screen); send /cookie in Telegram to treat.")
+        log.info(
+            "DogPhone running. Press the button to call (or use Test call on screen); "
+            "send /cookie in Telegram to treat."
+        )
 
-    # Fully async startup: initialize, start, then start polling and idle
-    await application.initialize()
-    await application.start()
-    await application.updater.start_polling(allowed_updates=Update.ALL_TYPES)
-    await application.updater.idle()
+    application.post_init = post_init  # type: ignore[attr-defined]
 
-
-def main() -> None:
-    asyncio.run(main_async())
+    # Synchronous call; PTB manages the asyncio loop internally.
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
 if __name__ == "__main__":
