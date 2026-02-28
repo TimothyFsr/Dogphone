@@ -46,12 +46,13 @@ def load_config() -> dict:
 
 def get_call_url(cfg: dict) -> str:
     """URL to open for the video call (Zoom, Whereby, etc.). Optionally append VIDEO_CALL_PASSWORD as ?pwd= or &pwd=."""
-    raw = cfg.get("video_call_url", "").strip()
+    raw = (cfg.get("video_call_url") or "").strip()
     if not raw:
         return ""
-    # If it's just a meeting ID (digits), use Zoom join URL
-    if raw.isdigit():
-        raw = f"https://zoom.us/j/{raw}"
+    # If it looks like a Zoom meeting ID (digits, maybe with spaces/dashes), use zoom.us/j/
+    meeting_id = raw.replace(" ", "").replace("-", "").replace("\u00a0", "")
+    if meeting_id.isdigit():
+        raw = f"https://zoom.us/j/{meeting_id}"
     elif not raw.startswith("http://") and not raw.startswith("https://"):
         raw = "https://" + raw
     password = (cfg.get("video_call_password") or "").strip()
