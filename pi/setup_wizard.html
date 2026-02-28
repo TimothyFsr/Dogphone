@@ -221,24 +221,22 @@
         stepWifi.classList.remove('hidden');
         return s;
       }
+      // Pi has internet: show scan (QR) + all sign-in steps (Telegram, Chat ID, Zoom) so they're always visible
       stepScan.classList.remove('hidden');
-      if (!s.has_token) {
-        stepTelegram.classList.remove('hidden');
-        return s;
+      stepTelegram.classList.remove('hidden');
+      stepMessage.classList.remove('hidden');
+      stepZoom.classList.remove('hidden');
+      // Disable inputs for steps already completed (all steps stay visible)
+      var telInput = stepTelegram.querySelector('input');
+      if (telInput && s.has_token) telInput.disabled = true;
+      if (s.chat_id) {
+        var msgBtn = stepMessage.querySelector('#btn-detect');
+        var msgInput = stepMessage.querySelector('#chat-id-manual');
+        if (msgBtn) msgBtn.disabled = true;
+        if (msgInput) msgInput.disabled = true;
       }
-      stepTelegram.classList.add('hidden');
-      if (!s.chat_id) {
-        stepMessage.classList.remove('hidden');
-        return s;
-      }
-      stepMessage.classList.add('hidden');
-      if (!s.has_video_url) {
-        stepZoom.classList.remove('hidden');
-        return s;
-      }
-      stepZoom.classList.add('hidden');
-      stepDone.classList.remove('hidden');
-      doneMsg.classList.remove('hidden');
+      var zoomInput = stepZoom.querySelector('input');
+      if (zoomInput && s.has_video_url) zoomInput.disabled = true;
       return s;
     }
 
@@ -379,7 +377,19 @@
       btnUpdate.disabled = false;
     });
 
-    loadStatus();
+    loadStatus().catch(function() {
+      // If status fails (e.g. wrong network), still show sign-in steps so user can try
+      stepWifi.classList.add('hidden');
+      stepScan.classList.remove('hidden');
+      stepTelegram.classList.remove('hidden');
+      stepMessage.classList.remove('hidden');
+      stepZoom.classList.remove('hidden');
+      stepDone.classList.add('hidden');
+      var notice = document.createElement('p');
+      notice.className = 'error-msg';
+      notice.textContent = 'Could not reach the device. If you\'re on the same WiFi as the Pi, refresh the page. You can still try the steps below.';
+      stepScan.appendChild(notice);
+    });
   </script>
 </body>
 </html>
