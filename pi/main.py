@@ -18,7 +18,7 @@ from pathlib import Path
 # Add pi dir so config can be found when run from repo root
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from config import load_config, get_jitsi_url, VERSION
+from config import load_config, get_call_url, VERSION
 
 logging.basicConfig(
     level=logging.INFO,
@@ -125,8 +125,8 @@ def open_jitsi_in_browser(url: str) -> None:
 
 
 async def on_button_call(cfg: dict, bot: Bot) -> None:
-    """Called when the call button is pressed: open Jitsi + notify owner."""
-    url = get_jitsi_url(cfg)
+    """Called when the call button is pressed: open video call URL + notify owner."""
+    url = get_call_url(cfg)
     open_jitsi_in_browser(url)
     chat_id = cfg["telegram_chat_id"]
     if chat_id and bot:
@@ -211,7 +211,7 @@ def _run_trigger_call_server():
             global _control_cfg, _control_bot, _control_loop
             if not _control_cfg or not _control_bot:
                 return "<h1>Not ready</h1><p>App still starting.</p>", 503
-            url = get_jitsi_url(_control_cfg)
+            url = get_call_url(_control_cfg)
             open_jitsi_in_browser(url)
             chat_id = _control_cfg.get("telegram_chat_id")
             if chat_id and _control_bot and _control_loop:

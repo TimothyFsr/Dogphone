@@ -45,7 +45,25 @@ Finish and reboot.
 
 ---
 
-## 3. Run the launcher by hand (see why it might fail)
+## 3. Only one instance (fix 409 Conflict / port in use)
+
+If you see **Telegram 409 Conflict** or **Port 8766 is in use**, two copies of the app are running (e.g. launcher at boot + you ran `python3 pi/main.py`). Only one must run.
+
+**Before running the app by hand**, stop everything:
+
+```bash
+pkill -f "python3.*main.py"
+pkill -f "launcher.py"
+sleep 2
+cd ~/Dogphone
+python3 pi/main.py
+```
+
+**Normal use:** Don’t run `python3 pi/main.py` yourself. Reboot and let the launcher start the app; use the status page and Test call.
+
+---
+
+## 4. Run the launcher by hand (see why it might fail)
 
 SSH in (or use keyboard and terminal on the Pi) and run:
 
@@ -63,7 +81,7 @@ python3 pi/launcher.py
 
 ---
 
-## 4. Optional: enable systemd fallback
+## 5. Optional: enable systemd fallback
 
 If desktop autostart still doesn’t run the launcher (e.g. different desktop or autostart not firing), you can enable a **systemd** service that starts the launcher after the desktop is up. Run this **once** (adjust paths and user if needed):
 

@@ -39,6 +39,8 @@ def load_config() -> dict:
         "telegram_chat_id": os.environ.get("TELEGRAM_CHAT_ID", "").strip(),
         "jitsi_room": os.environ.get("JITSI_ROOM", f"DogPhone-{hostname}").strip(),
         "jitsi_domain": os.environ.get("JITSI_DOMAIN", "meet.jit.si"),
+        # If set, use this URL for calls instead of Jitsi (e.g. Zoom PMI or Whereby room)
+        "video_call_url": os.environ.get("VIDEO_CALL_URL", "").strip(),
         "button_gpio": int(os.environ.get("BUTTON_GPIO", "17")),
         "servo_gpio": int(os.environ.get("SERVO_GPIO", "27")),
         "servo_pulse_min": float(os.environ.get("SERVO_PULSE_MIN", "0.5")),
@@ -53,3 +55,10 @@ def get_jitsi_url(cfg: dict) -> str:
     # Disable pre-join screen so the Pi joins directly; disable lobby so the phone joins without "accept"
     opts = "config.prejoinConfig.enabled=false&config.enableLobby=false"
     return f"https://{domain}/{room}#{opts}"
+
+
+def get_call_url(cfg: dict) -> str:
+    """URL to open for the video call. If VIDEO_CALL_URL is set (e.g. Zoom or Whereby), use that; else Jitsi."""
+    if cfg.get("video_call_url"):
+        return cfg["video_call_url"]
+    return get_jitsi_url(cfg)
