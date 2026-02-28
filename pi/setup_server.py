@@ -157,46 +157,14 @@ def create_app():
             f"http://{SETUP_AP_IP_DEFAULT}:{port}",
             f"http://{SETUP_AP_IP_LEGACY}:{port}",
         ]
-        token_ok = bool(cfg.get("telegram_bot_token"))
-        chat_ok = bool(cfg.get("telegram_chat_id"))
         video_ok = bool(cfg.get("video_call_url"))
         return jsonify({
             "setup_url": setup_url,
             "alternate_urls": [u for u in alternate_urls if u != setup_url],
             "has_internet": has_internet(),
-            "has_token": token_ok,
-            "chat_id": cfg.get("telegram_chat_id") or "",
             "has_video_url": video_ok,
-            "ready": token_ok and chat_ok and video_ok,
+            "ready": video_ok,
         })
-
-    @app.route("/api/telegram", methods=["POST"])
-    def api_telegram():
-        data = request.get_json() or {}
-        token = (data.get("token") or "").strip()
-        if not token:
-            return jsonify({"ok": False, "error": "Token required"}), 400
-        write_config({"TELEGRAM_BOT_TOKEN": token})
-        return jsonify({"ok": True})
-
-    @app.route("/api/chat_id", methods=["GET", "POST"])
-    def api_chat_id():
-        if request.method == "POST":
-            data = request.get_json() or {}
-            cid = (data.get("chat_id") or "").strip()
-            if not cid:
-                return jsonify({"ok": False, "error": "Chat ID required"}), 400
-            write_config({"TELEGRAM_CHAT_ID": cid})
-            return jsonify({"ok": True})
-        cfg = load_config()
-        token = cfg.get("telegram_bot_token")
-        if not token:
-            return jsonify({"ok": False, "chat_id": None, "error": "no_token"})
-        cid, err = fetch_chat_id(token)
-        if cid:
-            write_config({"TELEGRAM_CHAT_ID": cid})
-            return jsonify({"ok": True, "chat_id": cid})
-        return jsonify({"ok": False, "chat_id": None, "error": err or "unknown"})
 
     @app.route("/api/wifi", methods=["POST"])
     def api_wifi():
@@ -258,10 +226,6 @@ def create_app():
 
     @app.route("/api/complete", methods=["POST"])
     def api_complete():
-        data = request.get_json() or {}
-        cid = (data.get("chat_id") or "").strip()
-        if cid:
-            write_config({"TELEGRAM_CHAT_ID": cid})
         # Reboot so device starts in normal (main app) mode
         try:
             subprocess.Popen(

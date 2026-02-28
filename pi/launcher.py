@@ -20,11 +20,7 @@ BROWSER_CMD = ["chromium-browser", "--kiosk", "--noerrdialogs", "--disable-infob
 
 def is_configured() -> bool:
     cfg = load_config()
-    return bool(
-        cfg.get("telegram_bot_token")
-        and cfg.get("telegram_chat_id")
-        and cfg.get("video_call_url")
-    )
+    return bool(cfg.get("video_call_url"))
 
 
 def start_setup_server():
@@ -158,14 +154,6 @@ def run_status_server():
         def status():
             cfg = load_config()
             ips, internet_ok = get_network_info()
-            token_ok = bool(cfg.get("telegram_bot_token"))
-            chat_ok = bool(cfg.get("telegram_chat_id"))
-            token_status = "set" if token_ok else "missing"
-            token_class = "ok" if token_ok else "err"
-            chat_status = "set" if chat_ok else "missing"
-            if chat_ok and cfg.get("telegram_chat_id"):
-                chat_status = "set (" + str(cfg["telegram_chat_id"]) + ")"
-            chat_class = "ok" if chat_ok else "err"
             internet_status = "yes" if internet_ok else "no"
             internet_class = "ok" if internet_ok else "warn"
             video_call_url = cfg.get("video_call_url", "—") or "—"
@@ -182,10 +170,6 @@ def run_status_server():
             html = html.replace("{{ network_ips }}", ips or "—")
             html = html.replace("{{ internet_status }}", internet_status)
             html = html.replace("{{ internet_class }}", internet_class)
-            html = html.replace("{{ token_status }}", token_status)
-            html = html.replace("{{ token_class }}", token_class)
-            html = html.replace("{{ chat_status }}", chat_status)
-            html = html.replace("{{ chat_class }}", chat_class)
             html = html.replace("{{ video_call_url }}", video_call_url)
             html = html.replace("{{ setup_url }}", setup_url)
             html = html.replace("{{ has_call_url }}", "true" if has_call_url else "false")
@@ -209,10 +193,10 @@ def main():
     except Exception:
         pass
 
-    # Always start status server (so status page is available); open the right page
+    # Start status server first so the page is ready when we open the browser
     t = threading.Thread(target=run_status_server, daemon=True)
     t.start()
-    time.sleep(1)
+    time.sleep(3)
 
     if not is_configured():
         # Setup mode: start hotspot only if Pi has no internet (so user can connect to do WiFi setup)
@@ -221,6 +205,7 @@ def main():
             start_wifi_ap()
         if not start_setup_server():
             sys.exit(1)
+        time.sleep(2)
         open_browser(f"http://127.0.0.1:{SETUP_PORT}/setup")
         try:
             while True:
@@ -231,14 +216,15 @@ def main():
             pass
         return
 
-    # Configured: show status page (network, Telegram, Test call) and start main in subprocess
-    open_browser(f"http://127.0.0.1:{STATUS_PORT}/")
+    # Configured: start main app first, wait for it to bind, then open status page (avoids "main app: not running")
     main_py = Path(__file__).resolve().parent / "main.py"
     subprocess.Popen(
         [sys.executable, str(main_py)],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
+    time.sleep(3)
+    open_browser(f"http://127.0.0.1:{STATUS_PORT}/")
     try:
         while True:
             time.sleep(60)

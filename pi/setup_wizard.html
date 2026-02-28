@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>DogPhone Setup</title>
-  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -89,6 +89,7 @@
 </head>
 <body>
   <div class="container">
+    <p id="loading-msg" style="margin:2rem 0; color:#94a3b8;">Loading…</p>
     <h1>🐕 DogPhone</h1>
     <p class="sub">Set up in a few steps</p>
     <p style="margin-bottom:16px;"><a href="/exit" style="color:#94a3b8; font-size:0.9rem;">Close DogPhone (exit full screen)</a></p>
@@ -115,15 +116,7 @@
     </div>
 
     <!-- Steps shown when Pi has internet (after WiFi connected) -->
-    <div class="step hidden" id="step-telegram">
-      <h2>2. Connect Telegram</h2>
-      <p>Create a bot in Telegram: open <strong>@BotFather</strong>, send <code>/newbot</code>, follow the steps, then copy the <strong>bot token</strong> here.</p>
-      <input type="text" id="token" placeholder="Paste your bot token" autocomplete="off">
-      <button type="button" id="btn-token">Save token</button>
-      <p class="error-msg hidden" id="err-token"></p>
-    </div>
-
-    <div class="step hidden" id="step-message">
+    <div class="step hidden" id="step-message" style="display:none;">
       <h2>3. Get your Chat ID</h2>
       <p>In Telegram, open a chat with your new bot and send any message (e.g. <strong>hi</strong>). Then tap below to detect it.</p>
       <button type="button" id="btn-detect">I sent a message – detect me</button>
@@ -134,7 +127,7 @@
     </div>
 
     <div class="step hidden" id="step-zoom">
-      <h2>4. Add your Zoom link</h2>
+      <h2>2. Add your Zoom room</h2>
       <p>Sign up at <a href="https://zoom.us" target="_blank" rel="noopener">zoom.us</a> (free). In <strong>Profile → Personal Meeting Room</strong> copy your <strong>Join URL</strong>. In Zoom settings enable <strong>“Join before host”</strong>. Paste the URL below.</p>
       <input type="text" id="video-url" placeholder="Meeting ID or URL (e.g. 123456789 or https://zoom.us/j/123456789)" autocomplete="off">
       <input type="text" id="video-password" placeholder="Meeting password (optional)" autocomplete="off">
@@ -193,6 +186,8 @@
 
     async function loadStatus() {
       const s = await api('/api/status');
+      var loadingEl = document.getElementById('loading-msg');
+      if (loadingEl) loadingEl.style.display = 'none';
       const url = s.setup_url || (location.protocol + '//' + location.host);
       urlEl.innerHTML = '<a href="' + url + '">' + url + '</a>';
       if (s.alternate_urls && s.alternate_urls.length) {
@@ -203,21 +198,21 @@
       }
       if (typeof QRCode !== 'undefined' && qrEl) {
         qrEl.innerHTML = '';
-        var canvas = document.createElement('canvas');
-        qrEl.appendChild(canvas);
-        QRCode.toCanvas(canvas, url, { width: 220, margin: 1 }, function(err) {
-          if (err) { qrEl.innerHTML = '<p class="error-msg">QR failed. Use the URL below.</p>'; }
-        });
+        try {
+          new QRCode(qrEl, { text: url, width: 220, height: 220 });
+        } catch (e) {
+          qrEl.innerHTML = '<p class="error-msg">QR failed. Use the URL below.</p>';
+        }
       }
       stepWifi.classList.add('hidden');
-      stepTelegram.classList.add('hidden');
-      stepMessage.classList.add('hidden');
       stepZoom.classList.add('hidden');
       stepDone.classList.add('hidden');
+      if (stepMessage) stepMessage.classList.add('hidden');
+      if (stepTelegram) stepTelegram.classList.add('hidden');
       if (s.ready) {
         stepScan.classList.add('hidden');
         stepDone.classList.remove('hidden');
-        doneMsg.classList.remove('hidden');
+        if (doneMsg) doneMsg.classList.remove('hidden');
         return s;
       }
       if (!s.has_internet) {
@@ -225,18 +220,8 @@
         stepWifi.classList.remove('hidden');
         return s;
       }
-      // Pi has internet: show scan (QR) + all sign-in steps (Telegram, Chat ID, Zoom) so they're always visible
       stepScan.classList.remove('hidden');
-      stepTelegram.classList.remove('hidden');
-      stepMessage.classList.remove('hidden');
       stepZoom.classList.remove('hidden');
-      // Disable only Chat ID step when already set (token and Zoom can always be edited)
-      if (s.chat_id) {
-        var msgBtn = stepMessage.querySelector('#btn-detect');
-        var msgInput = stepMessage.querySelector('#chat-id-manual');
-        if (msgBtn) msgBtn.disabled = true;
-        if (msgInput) msgInput.disabled = true;
-      }
       return s;
     }
 
@@ -287,24 +272,9 @@
       btnZoom.disabled = false;
     });
 
-    btnToken.addEventListener('click', async () => {
-      errToken.classList.add('hidden');
-      const token = tokenInput.value.trim();
-      if (!token) { errToken.textContent = 'Please paste your bot token.'; errToken.classList.remove('hidden'); return; }
-      btnToken.disabled = true;
-      try {
-        const r = await api('/api/telegram', { method: 'POST', body: JSON.stringify({ token }) });
-        if (r.ok) {
-          stepTelegram.classList.add('hidden');
-          stepMessage.classList.remove('hidden');
-        } else { errToken.textContent = r.error || 'Failed'; errToken.classList.remove('hidden'); }
-      } catch (e) {
-        errToken.textContent = 'Network error. Are you on DogPhone-Setup WiFi?'; errToken.classList.remove('hidden');
-      }
-      btnToken.disabled = false;
-    });
+    if (btnToken) btnToken.addEventListener('click', function() {});
 
-    btnDetect.addEventListener('click', async () => {
+    if (btnDetect) btnDetect.addEventListener('click', async () => {
       errDetect.classList.add('hidden');
       btnDetect.disabled = true;
       btnDetect.textContent = 'Checking…';
@@ -333,30 +303,7 @@
       btnDetect.textContent = 'I sent a message – detect me';
     });
 
-    btnManualChat.addEventListener('click', async () => {
-      const cid = (chatIdManualInput.value || '').trim().replace(/\s/g, '');
-      if (!cid || !/^-?\d+$/.test(cid)) {
-        errDetect.textContent = 'Enter a number (your Chat ID from @userinfobot).';
-        errDetect.classList.remove('hidden');
-        return;
-      }
-      errDetect.classList.add('hidden');
-      btnManualChat.disabled = true;
-      try {
-        const r = await api('/api/chat_id', { method: 'POST', body: JSON.stringify({ chat_id: cid }) });
-        if (r.ok) {
-          stepMessage.classList.add('hidden');
-          stepZoom.classList.remove('hidden');
-        } else {
-          errDetect.textContent = 'Failed to save. Try again.';
-          errDetect.classList.remove('hidden');
-        }
-      } catch (e) {
-        errDetect.textContent = 'Network error.';
-        errDetect.classList.remove('hidden');
-      }
-      btnManualChat.disabled = false;
-    });
+    if (btnManualChat) btnManualChat.addEventListener('click', function() {});
 
     btnUpdate.addEventListener('click', async () => {
       errUpdate.classList.add('hidden');
@@ -379,11 +326,12 @@
     });
 
     loadStatus().catch(function() {
-      // If status fails (e.g. wrong network), still show sign-in steps so user can try
+      var loadingEl = document.getElementById('loading-msg');
+      if (loadingEl) loadingEl.style.display = 'none';
       stepWifi.classList.add('hidden');
       stepScan.classList.remove('hidden');
-      stepTelegram.classList.remove('hidden');
-      stepMessage.classList.remove('hidden');
+      if (stepTelegram) stepTelegram.classList.remove('hidden');
+      if (stepMessage) stepMessage.classList.remove('hidden');
       stepZoom.classList.remove('hidden');
       stepDone.classList.add('hidden');
       var notice = document.createElement('p');

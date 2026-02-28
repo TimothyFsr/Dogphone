@@ -34,8 +34,6 @@ def load_config() -> dict:
     for p in CONFIG_PATHS:
         _load_dotenv(p)
     return {
-        "telegram_bot_token": os.environ.get("TELEGRAM_BOT_TOKEN", "").strip(),
-        "telegram_chat_id": os.environ.get("TELEGRAM_CHAT_ID", "").strip(),
         "video_call_url": os.environ.get("VIDEO_CALL_URL", "").strip(),
         "video_call_password": os.environ.get("VIDEO_CALL_PASSWORD", "").strip(),
         "button_gpio": int(os.environ.get("BUTTON_GPIO", "17")),
