@@ -136,7 +136,8 @@
     <div class="step hidden" id="step-zoom">
       <h2>4. Add your Zoom link</h2>
       <p>Sign up at <a href="https://zoom.us" target="_blank" rel="noopener">zoom.us</a> (free). In <strong>Profile → Personal Meeting Room</strong> copy your <strong>Join URL</strong>. In Zoom settings enable <strong>“Join before host”</strong>. Paste the URL below.</p>
-      <input type="text" id="video-url" placeholder="https://zoom.us/j/123456789" autocomplete="off">
+      <input type="text" id="video-url" placeholder="Meeting ID or URL (e.g. 123456789 or https://zoom.us/j/123456789)" autocomplete="off">
+      <input type="text" id="video-password" placeholder="Meeting password (optional)" autocomplete="off">
       <button type="button" id="btn-zoom">Save and finish</button>
       <p class="error-msg hidden" id="err-zoom"></p>
     </div>
@@ -200,9 +201,12 @@
       } else {
         urlAltEl.style.display = 'none';
       }
-      if (typeof QRCode !== 'undefined' && qrEl && !qrEl.querySelector('canvas')) {
-        QRCode.toCanvas(url, { width: 220, margin: 1 }, (err, canvas) => {
-          if (!err && canvas) qrEl.appendChild(canvas);
+      if (typeof QRCode !== 'undefined' && qrEl) {
+        qrEl.innerHTML = '';
+        var canvas = document.createElement('canvas');
+        qrEl.appendChild(canvas);
+        QRCode.toCanvas(canvas, url, { width: 220, margin: 1 }, function(err) {
+          if (err) { qrEl.innerHTML = '<p class="error-msg">QR failed. Use the URL below.</p>'; }
         });
       }
       stepWifi.classList.add('hidden');
@@ -226,17 +230,13 @@
       stepTelegram.classList.remove('hidden');
       stepMessage.classList.remove('hidden');
       stepZoom.classList.remove('hidden');
-      // Disable inputs for steps already completed (all steps stay visible)
-      var telInput = stepTelegram.querySelector('input');
-      if (telInput && s.has_token) telInput.disabled = true;
+      // Disable only Chat ID step when already set (token and Zoom can always be edited)
       if (s.chat_id) {
         var msgBtn = stepMessage.querySelector('#btn-detect');
         var msgInput = stepMessage.querySelector('#chat-id-manual');
         if (msgBtn) msgBtn.disabled = true;
         if (msgInput) msgInput.disabled = true;
       }
-      var zoomInput = stepZoom.querySelector('input');
-      if (zoomInput && s.has_video_url) zoomInput.disabled = true;
       return s;
     }
 
@@ -266,10 +266,11 @@
     btnZoom.addEventListener('click', async () => {
       errZoom.classList.add('hidden');
       const videoUrl = (document.getElementById('video-url').value || '').trim();
-      if (!videoUrl) { errZoom.textContent = 'Paste your Zoom Join URL.'; errZoom.classList.remove('hidden'); return; }
+      const videoPassword = (document.getElementById('video-password').value || '').trim();
+      if (!videoUrl) { errZoom.textContent = 'Enter your Zoom Meeting ID or Join URL.'; errZoom.classList.remove('hidden'); return; }
       btnZoom.disabled = true;
       try {
-        const r = await api('/api/video_url', { method: 'POST', body: JSON.stringify({ video_call_url: videoUrl }) });
+        const r = await api('/api/video_url', { method: 'POST', body: JSON.stringify({ video_call_url: videoUrl, video_call_password: videoPassword }) });
         if (r.ok) {
           stepZoom.classList.add('hidden');
           stepDone.classList.remove('hidden');

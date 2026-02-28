@@ -5,6 +5,7 @@ Load DogPhone config from environment or config.env file.
 VERSION = "1.0.0"
 
 import os
+from urllib.parse import quote_plus
 from pathlib import Path
 
 # Prefer repo root config; fallback to pi/config.env or env vars only
@@ -36,6 +37,7 @@ def load_config() -> dict:
         "telegram_bot_token": os.environ.get("TELEGRAM_BOT_TOKEN", "").strip(),
         "telegram_chat_id": os.environ.get("TELEGRAM_CHAT_ID", "").strip(),
         "video_call_url": os.environ.get("VIDEO_CALL_URL", "").strip(),
+        "video_call_password": os.environ.get("VIDEO_CALL_PASSWORD", "").strip(),
         "button_gpio": int(os.environ.get("BUTTON_GPIO", "17")),
         "servo_gpio": int(os.environ.get("SERVO_GPIO", "27")),
         "servo_pulse_min": float(os.environ.get("SERVO_PULSE_MIN", "0.5")),
@@ -45,5 +47,17 @@ def load_config() -> dict:
 
 
 def get_call_url(cfg: dict) -> str:
-    """URL to open for the video call (Zoom, Whereby, etc.). Set VIDEO_CALL_URL in config."""
-    return cfg.get("video_call_url", "").strip()
+    """URL to open for the video call (Zoom, Whereby, etc.). Optionally append VIDEO_CALL_PASSWORD as ?pwd= or &pwd=."""
+    raw = cfg.get("video_call_url", "").strip()
+    if not raw:
+        return ""
+    # If it's just a meeting ID (digits), use Zoom join URL
+    if raw.isdigit():
+        raw = f"https://zoom.us/j/{raw}"
+    elif not raw.startswith("http://") and not raw.startswith("https://"):
+        raw = "https://" + raw
+    password = (cfg.get("video_call_password") or "").strip()
+    if password:
+        sep = "&" if "?" in raw else "?"
+        raw = f"{raw}{sep}pwd={quote_plus(password)}"
+    return raw
