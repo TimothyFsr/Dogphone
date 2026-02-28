@@ -20,7 +20,11 @@ BROWSER_CMD = ["chromium-browser", "--kiosk", "--noerrdialogs", "--disable-infob
 
 def is_configured() -> bool:
     cfg = load_config()
-    return bool(cfg.get("telegram_bot_token") and cfg.get("telegram_chat_id"))
+    return bool(
+        cfg.get("telegram_bot_token")
+        and cfg.get("telegram_chat_id")
+        and cfg.get("video_call_url")
+    )
 
 
 def start_setup_server():
@@ -165,6 +169,14 @@ def run_status_server():
             internet_status = "yes" if internet_ok else "no"
             internet_class = "ok" if internet_ok else "warn"
             video_call_url = cfg.get("video_call_url", "—") or "—"
+            has_call_url = bool(cfg.get("video_call_url"))
+            setup_port = cfg.get("setup_port", 8765)
+            first_ip = "127.0.0.1"
+            if ips and ips != "—":
+                parts = ips.split()
+                if parts:
+                    first_ip = parts[0]
+            setup_url = f"http://{first_ip}:{setup_port}/setup"
             html = open(html_path).read()
             html = html.replace("{{ version }}", VERSION)
             html = html.replace("{{ network_ips }}", ips or "—")
@@ -175,6 +187,8 @@ def run_status_server():
             html = html.replace("{{ chat_status }}", chat_status)
             html = html.replace("{{ chat_class }}", chat_class)
             html = html.replace("{{ video_call_url }}", video_call_url)
+            html = html.replace("{{ setup_url }}", setup_url)
+            html = html.replace("{{ has_call_url }}", "true" if has_call_url else "false")
             return html
 
         app.run(host="127.0.0.1", port=STATUS_PORT, debug=False, use_reloader=False)
@@ -201,8 +215,10 @@ def main():
     time.sleep(1)
 
     if not is_configured():
-        # Setup mode: WiFi AP + setup wizard
-        start_wifi_ap()
+        # Setup mode: start hotspot only if Pi has no internet (so user can connect to do WiFi setup)
+        ips, internet_ok = get_network_info()
+        if not internet_ok:
+            start_wifi_ap()
         if not start_setup_server():
             sys.exit(1)
         open_browser(f"http://127.0.0.1:{SETUP_PORT}/setup")

@@ -62,7 +62,14 @@
     <p><strong>Call URL:</strong> {{ video_call_url }}</p>
   </div>
 
-  <div class="section">
+  <div class="section" id="section-setup-missing" style="display:none;">
+    <h2>Complete setup</h2>
+    <p>Zoom link is not set. Open the setup page on your phone to add your Zoom Personal Meeting URL.</p>
+    <p><strong>Setup URL:</strong> <a href="{{ setup_url }}" id="setup-url-link">{{ setup_url }}</a></p>
+    <p style="font-size:0.9rem; color:#94a3b8;">Connect your phone to the same WiFi as the Pi, then open the link above or scan the QR code on the Pi screen (setup mode).</p>
+  </div>
+
+  <div class="section" id="section-test-call">
     <h2>Test call</h2>
     <p>Trigger a call and send the link to your Telegram (same as pressing the physical button).</p>
     <p id="main-status">Main app: <span id="main-app-status">checking…</span></p>
@@ -71,27 +78,37 @@
 
   <script>
     (function() {
-      var statusEl = document.getElementById('main-app-status');
-      var btn = document.getElementById('test-call-btn');
-      function check() {
-        fetch('/api/main-up').then(function(r) { return r.text(); }).then(function(t) {
-          if (t === '1') {
-            statusEl.textContent = 'running';
-            statusEl.className = 'ok';
-            btn.classList.remove('disabled');
-          } else {
-            statusEl.textContent = 'not running (Test call will not work)';
+      var hasCallUrl = {{ has_call_url }};
+      var sectionSetupMissing = document.getElementById('section-setup-missing');
+      var sectionTestCall = document.getElementById('section-test-call');
+      if (!hasCallUrl) {
+        sectionSetupMissing.style.display = 'block';
+        sectionTestCall.style.display = 'none';
+      } else {
+        sectionSetupMissing.style.display = 'none';
+        sectionTestCall.style.display = 'block';
+        var statusEl = document.getElementById('main-app-status');
+        var btn = document.getElementById('test-call-btn');
+        function check() {
+          fetch('/api/main-up').then(function(r) { return r.text(); }).then(function(t) {
+            if (t === '1') {
+              statusEl.textContent = 'running';
+              statusEl.className = 'ok';
+              btn.classList.remove('disabled');
+            } else {
+              statusEl.textContent = 'not running';
+              statusEl.className = 'warn';
+              btn.classList.add('disabled');
+            }
+          }).catch(function() {
+            statusEl.textContent = 'not running';
             statusEl.className = 'warn';
             btn.classList.add('disabled');
-          }
-        }).catch(function() {
-          statusEl.textContent = 'not running (Test call will not work)';
-          statusEl.className = 'warn';
-          btn.classList.add('disabled');
-        });
+          });
+        }
+        check();
+        setInterval(check, 5000);
       }
-      check();
-      setInterval(check, 5000);
     })();
   </script>
 </body>

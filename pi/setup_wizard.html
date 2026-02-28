@@ -96,16 +96,26 @@
     <!-- Step 0: On-screen instructions (for the Pi display) -->
     <div class="step" id="step-scan">
       <h2>1. Open setup on your phone</h2>
-      <p>Connect your phone to WiFi <strong>DogPhone-Setup</strong>. Password: <strong>dogphone123</strong>. Then open <strong>http://10.42.0.1:8765</strong> in your browser (if it doesn’t load, try http://192.168.4.1:8765).</p>
-      <p>Then <strong>scan this QR code</strong> with your camera to open the setup page:</p>
+      <p>Connect your phone to WiFi <strong>DogPhone-Setup</strong>. Password: <strong>dogphone123</strong>. Then <strong>scan this QR code</strong> with your camera to open the setup page (or open the URL below in your browser).</p>
       <div id="qrcode"></div>
-      <p>Or open one of these in your browser (try the first; if it doesn’t load, try the second):</p>
+      <p>Or open one of these in your browser (if the first doesn’t load, try the second):</p>
       <div class="url-box" id="setup-url"></div>
       <div class="url-box url-box-alt" id="setup-url-alt" style="margin-top:8px;"></div>
     </div>
 
-    <!-- Steps shown when opened on phone -->
-    <div class="step" id="step-telegram">
+    <!-- When on hotspot with no internet: connect Pi to user's WiFi first -->
+    <div class="step hidden" id="step-wifi">
+      <h2>1. Connect the Pi to your WiFi</h2>
+      <p>Enter your home WiFi name and password. The Pi will reboot and try to connect. If it fails, you’ll stay on this page — try again.</p>
+      <input type="text" id="wifi-ssid" placeholder="WiFi name (SSID)" autocomplete="off">
+      <input type="password" id="wifi-password" placeholder="WiFi password">
+      <button type="button" id="btn-wifi">Save and connect</button>
+      <p class="error-msg hidden" id="err-wifi"></p>
+      <p class="done-msg hidden" id="msg-wifi-reboot">Pi is rebooting. Switch your phone to your home WiFi, then open this page again (scan the QR code on the Pi screen or use the Pi’s IP from your router).</p>
+    </div>
+
+    <!-- Steps shown when Pi has internet (after WiFi connected) -->
+    <div class="step hidden" id="step-telegram">
       <h2>2. Connect Telegram</h2>
       <p>Create a bot in Telegram: open <strong>@BotFather</strong>, send <code>/newbot</code>, follow the steps, then copy the <strong>bot token</strong> here.</p>
       <input type="text" id="token" placeholder="Paste your bot token" autocomplete="off">
@@ -120,11 +130,19 @@
       <p class="error-msg hidden" id="err-detect"></p>
       <p style="margin-top:16px; color:#94a3b8; font-size:0.9rem;">If detection doesn’t work (e.g. no internet on the device), get your Chat ID manually: in Telegram, open <strong>@userinfobot</strong> and send it any message – it will reply with your ID (a number). Paste that number below:</p>
       <input type="text" id="chat-id-manual" placeholder="Or paste your Chat ID (e.g. 123456789)" inputmode="numeric" pattern="[0-9\-]+" style="margin-top:8px;">
-      <button type="button" id="btn-manual-chat" class="secondary" style="margin-top:8px;">Use this Chat ID and finish</button>
+      <button type="button" id="btn-manual-chat" class="secondary" style="margin-top:8px;">Use this Chat ID</button>
+    </div>
+
+    <div class="step hidden" id="step-zoom">
+      <h2>4. Add your Zoom link</h2>
+      <p>Sign up at <a href="https://zoom.us" target="_blank" rel="noopener">zoom.us</a> (free). In <strong>Profile → Personal Meeting Room</strong> copy your <strong>Join URL</strong>. In Zoom settings enable <strong>“Join before host”</strong>. Paste the URL below.</p>
+      <input type="text" id="video-url" placeholder="https://zoom.us/j/123456789" autocomplete="off">
+      <button type="button" id="btn-zoom">Save and finish</button>
+      <p class="error-msg hidden" id="err-zoom"></p>
     </div>
 
     <div class="step hidden" id="step-done">
-      <h2>4. All set!</h2>
+      <h2>All set!</h2>
       <p>Setup is complete. The device will restart and your dog can start calling you.</p>
       <div class="done-msg hidden" id="done-msg">Restarting in a few seconds…</div>
     </div>
@@ -144,8 +162,10 @@
     const urlEl = document.getElementById('setup-url');
     const urlAltEl = document.getElementById('setup-url-alt');
     const stepScan = document.getElementById('step-scan');
+    const stepWifi = document.getElementById('step-wifi');
     const stepTelegram = document.getElementById('step-telegram');
     const stepMessage = document.getElementById('step-message');
+    const stepZoom = document.getElementById('step-zoom');
     const stepDone = document.getElementById('step-done');
     const tokenInput = document.getElementById('token');
     const btnToken = document.getElementById('btn-token');
@@ -158,6 +178,11 @@
     const btnUpdate = document.getElementById('btn-update');
     const errUpdate = document.getElementById('err-update');
     const msgUpdate = document.getElementById('msg-update');
+    const btnWifi = document.getElementById('btn-wifi');
+    const errWifi = document.getElementById('err-wifi');
+    const msgWifiReboot = document.getElementById('msg-wifi-reboot');
+    const btnZoom = document.getElementById('btn-zoom');
+    const errZoom = document.getElementById('err-zoom');
 
     async function api(path, opts = {}) {
       const base = location.origin;
@@ -175,25 +200,93 @@
       } else {
         urlAltEl.style.display = 'none';
       }
-      if (typeof QRCode !== 'undefined') {
+      if (typeof QRCode !== 'undefined' && qrEl && !qrEl.querySelector('canvas')) {
         QRCode.toCanvas(url, { width: 220, margin: 1 }, (err, canvas) => {
           if (!err && canvas) qrEl.appendChild(canvas);
         });
       }
+      stepWifi.classList.add('hidden');
+      stepTelegram.classList.add('hidden');
+      stepMessage.classList.add('hidden');
+      stepZoom.classList.add('hidden');
+      stepDone.classList.add('hidden');
       if (s.ready) {
         stepScan.classList.add('hidden');
-        stepTelegram.classList.add('hidden');
-        stepMessage.classList.add('hidden');
         stepDone.classList.remove('hidden');
         doneMsg.classList.remove('hidden');
-        return;
+        return s;
       }
-      if (s.has_token) {
-        stepTelegram.classList.add('hidden');
+      if (!s.has_internet) {
+        stepScan.classList.remove('hidden');
+        stepWifi.classList.remove('hidden');
+        return s;
+      }
+      stepScan.classList.remove('hidden');
+      if (!s.has_token) {
+        stepTelegram.classList.remove('hidden');
+        return s;
+      }
+      stepTelegram.classList.add('hidden');
+      if (!s.chat_id) {
         stepMessage.classList.remove('hidden');
+        return s;
       }
+      stepMessage.classList.add('hidden');
+      if (!s.has_video_url) {
+        stepZoom.classList.remove('hidden');
+        return s;
+      }
+      stepZoom.classList.add('hidden');
+      stepDone.classList.remove('hidden');
+      doneMsg.classList.remove('hidden');
       return s;
     }
+
+    btnWifi.addEventListener('click', async () => {
+      errWifi.classList.add('hidden');
+      msgWifiReboot.classList.add('hidden');
+      const ssid = (document.getElementById('wifi-ssid').value || '').trim();
+      const password = (document.getElementById('wifi-password').value || '');
+      if (!ssid) { errWifi.textContent = 'Enter your WiFi name.'; errWifi.classList.remove('hidden'); return; }
+      btnWifi.disabled = true;
+      try {
+        const r = await api('/api/wifi', { method: 'POST', body: JSON.stringify({ ssid, password }) });
+        if (r.ok && r.reboot) {
+          msgWifiReboot.classList.remove('hidden');
+          errWifi.classList.add('hidden');
+        } else {
+          errWifi.textContent = r.error || 'Connection failed. Try again.';
+          errWifi.classList.remove('hidden');
+        }
+      } catch (e) {
+        errWifi.textContent = 'Network error. Are you on DogPhone-Setup WiFi?';
+        errWifi.classList.remove('hidden');
+      }
+      btnWifi.disabled = false;
+    });
+
+    btnZoom.addEventListener('click', async () => {
+      errZoom.classList.add('hidden');
+      const videoUrl = (document.getElementById('video-url').value || '').trim();
+      if (!videoUrl) { errZoom.textContent = 'Paste your Zoom Join URL.'; errZoom.classList.remove('hidden'); return; }
+      btnZoom.disabled = true;
+      try {
+        const r = await api('/api/video_url', { method: 'POST', body: JSON.stringify({ video_call_url: videoUrl }) });
+        if (r.ok) {
+          stepZoom.classList.add('hidden');
+          stepDone.classList.remove('hidden');
+          doneMsg.classList.remove('hidden');
+          setTimeout(() => api('/api/complete', { method: 'POST', body: JSON.stringify({}) }), 500);
+        } else {
+          errZoom.textContent = r.error || 'Failed to save.';
+          errZoom.classList.remove('hidden');
+        }
+      } catch (e) {
+        errZoom.textContent = 'Network error.';
+        errZoom.classList.remove('hidden');
+      }
+      btnZoom.disabled = false;
+    });
 
     btnToken.addEventListener('click', async () => {
       errToken.classList.add('hidden');
@@ -220,9 +313,7 @@
         const r = await api('/api/chat_id');
         if (r.ok && r.chat_id) {
           stepMessage.classList.add('hidden');
-          stepDone.classList.remove('hidden');
-          doneMsg.classList.remove('hidden');
-          setTimeout(() => api('/api/complete', { method: 'POST', body: JSON.stringify({ chat_id: r.chat_id }) }), 500);
+          stepZoom.classList.remove('hidden');
         } else {
           if (r.error === 'network_error') {
             errDetect.textContent = 'Device can’t reach Telegram (no internet on hotspot). Use “Or paste your Chat ID” below.';
@@ -253,11 +344,10 @@
       errDetect.classList.add('hidden');
       btnManualChat.disabled = true;
       try {
-        const r = await api('/api/complete', { method: 'POST', body: JSON.stringify({ chat_id: cid }) });
+        const r = await api('/api/chat_id', { method: 'POST', body: JSON.stringify({ chat_id: cid }) });
         if (r.ok) {
           stepMessage.classList.add('hidden');
-          stepDone.classList.remove('hidden');
-          doneMsg.classList.remove('hidden');
+          stepZoom.classList.remove('hidden');
         } else {
           errDetect.textContent = 'Failed to save. Try again.';
           errDetect.classList.remove('hidden');

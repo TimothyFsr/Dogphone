@@ -140,22 +140,34 @@ def create_app():
             return send_from_directory(SETUP_HTML.parent, SETUP_HTML.name)
         return "<h1>Setup</h1><p>Place setup_wizard.html in the pi/ folder.</p>", 404
 
+    def has_internet() -> bool:
+        try:
+            import urllib.request
+            urllib.request.urlopen("https://api.telegram.org", timeout=3)
+            return True
+        except Exception:
+            return False
+
     @app.route("/api/status")
     def api_status():
         cfg = load_config()
         port = cfg.get("setup_port", 8765)
         setup_url = get_setup_url()
-        # When on hotspot, nmcli often uses 10.42.0.1; some setups use 192.168.4.1
         alternate_urls = [
             f"http://{SETUP_AP_IP_DEFAULT}:{port}",
             f"http://{SETUP_AP_IP_LEGACY}:{port}",
         ]
+        token_ok = bool(cfg.get("telegram_bot_token"))
+        chat_ok = bool(cfg.get("telegram_chat_id"))
+        video_ok = bool(cfg.get("video_call_url"))
         return jsonify({
             "setup_url": setup_url,
             "alternate_urls": [u for u in alternate_urls if u != setup_url],
-            "has_token": bool(cfg.get("telegram_bot_token")),
+            "has_internet": has_internet(),
+            "has_token": token_ok,
             "chat_id": cfg.get("telegram_chat_id") or "",
-            "ready": bool(cfg.get("telegram_bot_token") and cfg.get("telegram_chat_id")),
+            "has_video_url": video_ok,
+            "ready": token_ok and chat_ok and video_ok,
         })
 
     @app.route("/api/telegram", methods=["POST"])
@@ -167,8 +179,15 @@ def create_app():
         write_config({"TELEGRAM_BOT_TOKEN": token})
         return jsonify({"ok": True})
 
-    @app.route("/api/chat_id")
+    @app.route("/api/chat_id", methods=["GET", "POST"])
     def api_chat_id():
+        if request.method == "POST":
+            data = request.get_json() or {}
+            cid = (data.get("chat_id") or "").strip()
+            if not cid:
+                return jsonify({"ok": False, "error": "Chat ID required"}), 400
+            write_config({"TELEGRAM_CHAT_ID": cid})
+            return jsonify({"ok": True})
         cfg = load_config()
         token = cfg.get("telegram_bot_token")
         if not token:
@@ -187,8 +206,27 @@ def create_app():
         if not ssid:
             return jsonify({"ok": False, "error": "WiFi name required"}), 400
         if connect_wifi(ssid, password):
-            return jsonify({"ok": True})
-        return jsonify({"ok": False, "error": "Could not connect. Check password and try again."}), 400
+            try:
+                subprocess.Popen(
+                    ["sudo", "reboot"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            except Exception:
+                pass
+            return jsonify({"ok": True, "reboot": True})
+        return jsonify({"ok": False, "error": "Connection failed. Try again."}), 400
+
+    @app.route("/api/video_url", methods=["POST"])
+    def api_video_url():
+        data = request.get_json() or {}
+        url = (data.get("video_call_url") or "").strip()
+        if not url:
+            return jsonify({"ok": False, "error": "Zoom URL required"}), 400
+        if not url.startswith("http://") and not url.startswith("https://"):
+            url = "https://" + url
+        write_config({"VIDEO_CALL_URL": url})
+        return jsonify({"ok": True})
 
     @app.route("/exit")
     def exit_page():

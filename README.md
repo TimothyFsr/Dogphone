@@ -48,7 +48,8 @@ When someone buys the system, they **plug in power** and the **screen shows simp
 2. **On your phone**: Connect to WiFi **DogPhone-Setup**, then **scan the QR code** (or open the URL in the browser). The setup page opens on your phone.
 3. **Create a Telegram bot**: In Telegram, open **@BotFather**, send `/newbot`, follow the steps, then **copy the bot token** and paste it into the setup page.
 4. **Send a message** to your new bot (e.g. “hi”), then on the setup page tap **“I sent a message – detect me”**. The device finds your Chat ID and saves it.
-5. The device **restarts automatically**. After that, the dog can press the button to call you, and you can send **/cookie** in Telegram to dispense a treat.
+5. If the setup page shows **"Connect the Pi to your WiFi"** first, enter your home WiFi name and password and tap **Save and connect**. The Pi reboots; if connection fails, try again. Then switch your phone to your home WiFi and open the setup page again (scan the QR on the Pi or use the Pi's IP). Complete **Telegram** (bot token, then detect Chat ID) and **Zoom** (paste your Personal Meeting Join URL, enable "Join before host", then **Save and finish**).
+6. The device **restarts**. The dog can press the button to call you, and you can send **/cookie** in Telegram to dispense a treat.
 
 Optional: for automatic reboot after setup, allow the DogPhone user to run `sudo reboot` without a password, e.g. add a file under `/etc/sudoers.d/` (see `pi/install.sh` or docs).
 
