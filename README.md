@@ -10,21 +10,18 @@ Designed to be **easy to set up** and **commercialization-ready**.
 
 | Feature | How it works |
 |--------|----------------|
-| **Dog calls you** | Dog presses a big button → Pi opens a **video call room** (Jitsi Meet) and sends you a **Telegram message** with a “Join” link. You tap the link on your phone and see/hear your dog. |
+| **Dog calls you** | Dog presses a big button → Pi opens your **Zoom** meeting and sends you a **Telegram message** with the same “Join” link. You tap the link on your phone and see/hear your dog. |
 | **You send a treat** | You send **`/cookie`** (or “cookie”) to the DogPhone Telegram bot. The Pi receives it and triggers a **servo** to dispense a treat. |
 
-- **Video/audio**: Default is [Jitsi Meet](https://meet.jit.si); for a simpler experience you can use a **fixed meeting link** from **Zoom** or **Whereby** (one-time sign up, then add the URL to config).
+- **Video/audio**: **Zoom** (one-time sign up, then set your Personal Meeting link in config). The Pi and your phone both join the same Zoom URL.
 - **Notifications + treat command**: **Telegram** (one bot, one chat; no extra backend server).
 
-**Easier option: Zoom or Whereby (one-time sign up)**  
-If Jitsi's "moderator required" flow is a hassle, use a permanent room link instead:
-
-1. **Zoom**: Sign up at [zoom.us](https://zoom.us) (free). In **Profile → Personal Meeting Room** copy your **Join URL** (e.g. `https://zoom.us/j/123456789`). In **Settings** enable **"Join before host"** so the Pi can join without you. In `config/config.env` add: `VIDEO_CALL_URL=https://zoom.us/j/YOUR_PMI`
-2. **Whereby**: Sign up at [whereby.com](https://whereby.com) (free tier: one room). Create a room and copy its URL. In `config/config.env` add: `VIDEO_CALL_URL=https://yourname.whereby.com/your-room`
-
-When the dog presses the button, the Pi and your Telegram link both open that same URL; you and the Pi join the same call with no moderator gate.
-
-**Why not Google Meet or Telegram video?** Google Meet is hard to automate from a Pi (no simple “join as device” flow). Telegram’s Bot API cannot start voice/video calls; only the official app can. Jitsi or a fixed Zoom/Whereby link gives a single URL you open on your phone.
+**Zoom setup (one-time)**  
+1. Sign up at [zoom.us](https://zoom.us) (free).  
+2. In **Profile → Personal Meeting Room** copy your **Join URL** (e.g. `https://zoom.us/j/123456789`).  
+3. In **Settings** enable **“Join before host”** so the Pi can join without you.  
+4. On the Pi, edit `~/Dogphone/config/config.env` and set: `VIDEO_CALL_URL=https://zoom.us/j/YOUR_PMI`  
+5. Restart the app (or reboot). When the dog presses the button, the Pi and your Telegram link both open that URL; you and the Pi are in the same call.
 
 ---
 
@@ -72,7 +69,7 @@ DogPhone/
 ├── README.md                 # This file
 ├── pi/
 │   ├── launcher.py           # Entry point: setup wizard vs main app
-│   ├── main.py               # Main app: button, Telegram, Jitsi, servo
+│   ├── main.py               # Main app: button, Telegram, Zoom, servo
 │   ├── setup_server.py       # Setup web server (wizard + API)
 │   ├── setup_wizard.html      # On-screen + phone setup UI (with QR code)
 │   ├── status_page.html       # Status + Test call (network, Telegram, main app)
@@ -114,7 +111,7 @@ Full step-by-step: **[docs/IMAGE-BUILD.md](docs/IMAGE-BUILD.md)**.
 
 1. On the Pi, clone or copy this repo.
 2. Install: `./pi/install.sh`. For **consumer-style setup**: don’t create `config.env`; on first boot run `python pi/launcher.py` — the screen shows the setup wizard with QR code; connect to **DogPhone-Setup** WiFi and complete setup on your phone. For **fast dev setup**: copy `config/config.example.env` to `config/config.env` and set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`, then run `python pi/launcher.py` or `python pi/main.py`.
-3. Press the button → you get a Telegram message with the Jitsi link. Send `/cookie` to the bot → servo runs.
+3. Press the button → you get a Telegram message with the Zoom link. Send `/cookie` to the bot → servo runs.
 
 ---
 
@@ -137,8 +134,8 @@ You don’t need to copy files to the Pi: push to GitHub, then reboot the Pi (or
 - **Telegram 409 Conflict or “Port 8766 is in use”**  
   Two copies of the app are running. Stop everything: `pkill -f "python3.*main.py"` and `pkill -f "launcher.py"`. Then run only one (e.g. `python3 pi/main.py` for debugging, or reboot and use the launcher). See **docs/NOTHING-STARTS.md** (“Only one instance”).
 
-- **Phone says “request access to the meeting” and the Pi doesn’t show a request**  
-  The join link includes options to skip the lobby; some in-app browsers (e.g. Telegram) can strip the URL fragment. **Copy the join link from Telegram and open it in your normal browser (Safari or Chrome)** so the full URL is used. If it still asks for access, on meet.jit.si the Pi may not show an “admit” button; try joining from the browser once — if it works there, use “Open in browser” for the link next time.
+- **“Set VIDEO_CALL_URL in config” on startup**  
+  Add `VIDEO_CALL_URL=https://zoom.us/j/YOUR_PMI` to `~/Dogphone/config/config.env` (your Zoom Personal Meeting Join URL). Enable “Join before host” in Zoom settings so the Pi can join without you.
 
 ---
 

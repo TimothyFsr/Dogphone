@@ -2,7 +2,7 @@
 """
 DogPhone – Raspberry Pi main app.
 
-- Button press: open Jitsi video room + send Telegram "your dog is calling" with link.
+- Button press: open video call (Zoom URL) + send Telegram "your dog is calling" with link.
 - Telegram /cookie (or "cookie"): trigger servo to dispense treat.
 
 Run: python main.py
@@ -93,14 +93,14 @@ def open_standby_screen() -> None:
         pass
 
 
-def open_jitsi_in_browser(url: str) -> None:
-    """Open Jitsi room in Chromium (kiosk) so camera/mic are used for the call."""
+def open_video_call_in_browser(url: str) -> None:
+    """Open video call URL in Chromium (kiosk) so camera/mic are used for the call."""
     display = os.environ.get("DISPLAY", ":0")
     cmd = [
         "chromium-browser",
         "--kiosk",
         "--autoplay-policy=no-user-gesture-required",
-        "--use-fake-ui-for-media-stream",  # optional: auto-allow cam/mic in kiosk
+        "--use-fake-ui-for-media-stream",  # auto-allow cam/mic in kiosk
         url,
     ]
     try:
@@ -110,9 +110,8 @@ def open_jitsi_in_browser(url: str) -> None:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
-        log.info("Opened Jitsi in browser: %s", url)
+        log.info("Opened video call in browser: %s", url)
     except FileNotFoundError:
-        # Fallback: try xdg-open or default browser
         try:
             subprocess.Popen(
                 ["xdg-open", url],
@@ -127,7 +126,7 @@ def open_jitsi_in_browser(url: str) -> None:
 async def on_button_call(cfg: dict, bot: Bot) -> None:
     """Called when the call button is pressed: open video call URL + notify owner."""
     url = get_call_url(cfg)
-    open_jitsi_in_browser(url)
+    open_video_call_in_browser(url)
     chat_id = cfg["telegram_chat_id"]
     if chat_id and bot:
         try:
@@ -212,7 +211,7 @@ def _run_trigger_call_server():
             if not _control_cfg or not _control_bot:
                 return "<h1>Not ready</h1><p>App still starting.</p>", 503
             url = get_call_url(_control_cfg)
-            open_jitsi_in_browser(url)
+            open_video_call_in_browser(url)
             chat_id = _control_cfg.get("telegram_chat_id")
             if chat_id and _control_bot and _control_loop:
                 try:
@@ -270,6 +269,12 @@ def main() -> None:
     if not cfg["telegram_bot_token"] or not cfg["telegram_chat_id"]:
         log.error("Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in config.env or environment.")
         sys.exit(1)
+
+    call_url = get_call_url(cfg)
+    if not call_url:
+        log.error("Set VIDEO_CALL_URL in config (e.g. your Zoom Personal Meeting link).")
+        sys.exit(1)
+    log.info("Call URL: %s", call_url)
 
     application = (
         Application.builder()

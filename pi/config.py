@@ -5,7 +5,6 @@ Load DogPhone config from environment or config.env file.
 VERSION = "1.0.0"
 
 import os
-import socket
 from pathlib import Path
 
 # Prefer repo root config; fallback to pi/config.env or env vars only
@@ -33,13 +32,9 @@ def _load_dotenv(path: Path) -> None:
 def load_config() -> dict:
     for p in CONFIG_PATHS:
         _load_dotenv(p)
-    hostname = socket.gethostname()
     return {
         "telegram_bot_token": os.environ.get("TELEGRAM_BOT_TOKEN", "").strip(),
         "telegram_chat_id": os.environ.get("TELEGRAM_CHAT_ID", "").strip(),
-        "jitsi_room": os.environ.get("JITSI_ROOM", f"DogPhone-{hostname}").strip(),
-        "jitsi_domain": os.environ.get("JITSI_DOMAIN", "meet.jit.si"),
-        # If set, use this URL for calls instead of Jitsi (e.g. Zoom PMI or Whereby room)
         "video_call_url": os.environ.get("VIDEO_CALL_URL", "").strip(),
         "button_gpio": int(os.environ.get("BUTTON_GPIO", "17")),
         "servo_gpio": int(os.environ.get("SERVO_GPIO", "27")),
@@ -49,16 +44,6 @@ def load_config() -> dict:
     }
 
 
-def get_jitsi_url(cfg: dict) -> str:
-    room = cfg["jitsi_room"].replace(" ", "")
-    domain = cfg["jitsi_domain"].rstrip("/")
-    # Disable pre-join screen so the Pi joins directly; disable lobby so the phone joins without "accept"
-    opts = "config.prejoinConfig.enabled=false&config.enableLobby=false"
-    return f"https://{domain}/{room}#{opts}"
-
-
 def get_call_url(cfg: dict) -> str:
-    """URL to open for the video call. If VIDEO_CALL_URL is set (e.g. Zoom or Whereby), use that; else Jitsi."""
-    if cfg.get("video_call_url"):
-        return cfg["video_call_url"]
-    return get_jitsi_url(cfg)
+    """URL to open for the video call (Zoom, Whereby, etc.). Set VIDEO_CALL_URL in config."""
+    return cfg.get("video_call_url", "").strip()

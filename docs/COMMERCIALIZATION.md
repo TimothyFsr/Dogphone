@@ -16,7 +16,7 @@
 ## Support and setup flow
 
 - **Get Chat ID**: Document “Message your bot, then run `get_chat_id.py`” or offer a “Get my Chat ID” web page that uses the user’s bot token (handled client-side or via your backend) and displays the ID.
-- **Troubleshooting**: Checklist: WiFi, bot token, chat ID, Jitsi link opens on phone, /cookie triggers servo. Publish a short FAQ.
+- **Troubleshooting**: Checklist: WiFi, bot token, chat ID, VIDEO_CALL_URL (Zoom link) set and opens on phone, /cookie triggers servo. Publish a short FAQ.
 
 ## Scaling and variants
 
@@ -26,11 +26,10 @@
 
 ## Legal and compliance
 
-- **Data**: Video/audio goes through Jitsi (meet.jit.si or self-hosted). Telegram stores only bot messages. No need to store video on your side unless you add recording.
+- **Data**: Video/audio goes through Zoom (user’s Personal Meeting link). Telegram stores only bot messages. No need to store video on your side unless you add recording.
 - **Telegram ToS**: Bot usage must comply with Telegram’s terms; current use (notifications + commands) is standard.
 
 ## Possible future improvements
 
-- **Mobile app**: Same flow (Telegram + Jitsi link), but app can add push notifications, “Join call” button, “Send cookie” button, and optional device management.
-- **Custom Jitsi server**: For enterprise or privacy-focused customers, ship or document a self-hosted Jitsi instance; Pi and app point to that domain.
-- **Different video backends**: Replace Jitsi with another WebRTC provider (e.g. LiveKit, Daily) if you need different features or SLAs; the Pi still “opens URL + notifies via Telegram.”
+- **Mobile app**: Same flow (Telegram + Zoom link), but app can add push notifications, “Join call” button, “Send cookie” button, and optional device management.
+- **Different video backends**: VIDEO_CALL_URL can point to Zoom, Whereby, or any meeting URL; the Pi still “opens URL + notifies via Telegram.”

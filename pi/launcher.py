@@ -164,7 +164,7 @@ def run_status_server():
             chat_class = "ok" if chat_ok else "err"
             internet_status = "yes" if internet_ok else "no"
             internet_class = "ok" if internet_ok else "warn"
-            jitsi_room = cfg.get("jitsi_room", "—")
+            video_call_url = cfg.get("video_call_url", "—") or "—"
             html = open(html_path).read()
             html = html.replace("{{ version }}", VERSION)
             html = html.replace("{{ network_ips }}", ips or "—")
@@ -174,7 +174,7 @@ def run_status_server():
             html = html.replace("{{ token_class }}", token_class)
             html = html.replace("{{ chat_status }}", chat_status)
             html = html.replace("{{ chat_class }}", chat_class)
-            html = html.replace("{{ jitsi_room }}", jitsi_room)
+            html = html.replace("{{ video_call_url }}", video_call_url)
             return html
 
         app.run(host="127.0.0.1", port=STATUS_PORT, debug=False, use_reloader=False)
